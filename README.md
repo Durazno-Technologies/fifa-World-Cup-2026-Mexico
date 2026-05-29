@@ -44,7 +44,7 @@ flowchart TD
 
 ### Stack recomendado
 
-- Frontend: Astro + TypeScript.
+- Frontend: Astro + TypeScript + Tailwind CSS v4.
 - QR local estilizado: `qr-code-styling`.
 - Compresion para URL: `lz-string`.
 - Sin APIs de terceros para generar QR.

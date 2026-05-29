@@ -59,6 +59,7 @@ No introducir backend salvo que se pida explicitamente en otra fase.
    - IDs unicos.
    - IDs existentes en catalogo.
    - coherencia `r` contra `gl/gv`.
+   - **Bloqueo por fecha**: Se impide exportar o crear nuevas quinielas después del 10 de junio de 2026.
 5. Si falla, retornar error tipado y no romper la UI.
 
 ## Errores tipados recomendados

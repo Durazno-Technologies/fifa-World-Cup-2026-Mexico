@@ -14,7 +14,7 @@ No agregar autenticacion, backend, base de datos, ni roles.
 ## Stack obligatorio
 
 - Astro + TypeScript.
-- Estilos: CSS modular o global con variables CSS.
+- Estilos: Tailwind CSS v4.
 - QR local estilizado: `qr-code-styling`.
 - Compresion payload: `lz-string`.
 
@@ -52,7 +52,8 @@ public/
 
 ### Modo crear quiniela
 
-- Mostrar partidos de primera fase con datos hardcodeados por ID.
+- Mostrar partidos de primera fase con datos hardcodeados por ID (48 equipos oficiales del Mundial 2026 ya incluidos en `matches.ts`).
+- **Regla estricta:** Bloquear la creación de nuevas quinielas a partir del 10 de junio de 2026 a las 23:59:59 (hora local) para evitar trampas, validado del lado del cliente.
 - En cada partido capturar:
   - resultado: Local / Empate / Visita.
   - marcador: goles local, goles visita.
@@ -132,7 +133,7 @@ Parametros sugeridos:
 
 - Idioma completo: espanol.
 - Tema mundialista con identidad Durazno:
-  - paleta verde/coral/arena o similar (evitar look neutro aburrido).
+  - paleta esmeralda/verde azulado basada en Tailwind CSS (`emerald`, `teal`) con acentos brillantes (evitar look neutro aburrido).
   - fondos con gradiente suave y texturas ligeras.
   - tarjetas con bordes redondeados consistentes.
 - Tipografia con personalidad (no default browser).
