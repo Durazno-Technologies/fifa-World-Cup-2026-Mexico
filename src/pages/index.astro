@@ -305,8 +305,9 @@ import ErrorState from '../components/ErrorState.astro';
         };
 
         const q = encodePayload(payload);
-        const productionBase = 'https://fifa-world-cup-2026-mexico.vercel.app/';
+        const productionBase = 'https://mundial.durazno.org/';
         generatedUrl = `${productionBase}#q=${q}`;
+        sessionStorage.setItem('export_url', generatedUrl);
 
         renderExportView(generatedUrl);
       }
@@ -323,56 +324,33 @@ import ErrorState from '../components/ErrorState.astro';
 
         qrContainer.innerHTML = '<div class="flex flex-col items-center justify-center gap-3"><div class="w-10 h-10 border-4 border-dz-orange border-t-transparent rounded-full animate-spin"></div><p class="text-sm text-gray-400">Generando QR...</p></div>';
 
-        const qrCode = new QRCodeStyling({
-          width: 400,
-          height: 400,
-          data: url,
-          margin: 8,
-          qrOptions: { errorCorrectionLevel: 'H' },
-          imageOptions: { hideBackgroundDots: true, imageSize: 0.22, margin: 4, crossOrigin: 'anonymous' },
-          image: '/logo.svg',
-          dotsOptions: { type: 'rounded', color: '#201E47' },
-          cornersSquareOptions: { type: 'extra-rounded', color: '#FF4B1F' },
-          cornersDotOptions: { type: 'dot', color: '#FF4B1F' },
-          backgroundOptions: { color: '#ffffff' }
-        });
+        let qrCode: any;
+        const btnDownload = document.getElementById('btn-download-qr') as HTMLButtonElement;
+        btnDownload.disabled = true;
+        btnDownload.classList.add('opacity-50', 'cursor-not-allowed');
 
         setTimeout(() => {
+          qrCode = new QRCodeStyling({
+            width: 400,
+            height: 400,
+            data: url,
+            margin: 8,
+            qrOptions: { errorCorrectionLevel: 'H' },
+            imageOptions: { hideBackgroundDots: true, imageSize: 0.22, margin: 4, crossOrigin: 'anonymous' },
+            image: '/logo.svg',
+            dotsOptions: { type: 'rounded', color: '#201E47' },
+            cornersSquareOptions: { type: 'extra-rounded', color: '#FF4B1F' },
+            cornersDotOptions: { type: 'dot', color: '#FF4B1F' },
+            backgroundOptions: { color: '#ffffff' }
+          });
           qrContainer.innerHTML = '';
           qrCode.append(qrContainer);
-        }, 50);
-
-        const btnNative = document.getElementById('btn-share-native')!;
-        const btnDownload = document.getElementById('btn-download-qr')!;
-
-        async function getQrBlob(): Promise<Blob> {
-          const blob = await qrCode.getRawData('png');
-          if (!blob) throw new Error('No QR data');
-          return blob;
-        }
-
-        let canShareFiles = false;
-        try {
-          canShareFiles = !!(navigator.canShare && navigator.canShare({ files: [new File([''], 'test.png', { type: 'image/png' })] }));
-        } catch {}
-
-        if (canShareFiles) {
-          btnNative.classList.remove('hidden');
-          btnNative.classList.add('flex');
-          btnNative.onclick = async () => {
-            try {
-              const blob = await getQrBlob();
-              const file = new File([blob], `Quiniela-${creatorName}.png`, { type: 'image/png' });
-              await navigator.share({ files: [file], title: `Quiniela de ${creatorName}`, text: `¡Mira la quiniela de ${creatorName} para el Mundial 2026!` });
-            } catch (err) {
-              console.log('Share cancelled or failed:', err);
-            }
-          };
-        } else {
-          btnNative.classList.add('hidden');
-        }
+          btnDownload.disabled = false;
+          btnDownload.classList.remove('opacity-50', 'cursor-not-allowed');
+        }, 100);
 
         btnDownload.onclick = () => {
+          if (!qrCode) return;
           qrCode.download({ name: `Quiniela-${creatorName}`, extension: 'png' });
         };
       }
@@ -382,6 +360,7 @@ import ErrorState from '../components/ErrorState.astro';
         currentView = 'readonly';
 
         localStorage.removeItem(STORAGE_KEY);
+        sessionStorage.removeItem('export_url');
 
         const result = decodePayload(q);
         if (result.error) {
@@ -485,9 +464,16 @@ import ErrorState from '../components/ErrorState.astro';
       function route() {
         const hash = window.location.hash;
         if (hash.startsWith('#q=')) {
+          sessionStorage.removeItem('export_url');
           showReadOnlyMode(hash.substring(3));
-        } else if (currentView !== 'export') {
-          showCreateMode();
+        } else {
+          const exportUrl = sessionStorage.getItem('export_url');
+          if (exportUrl && currentView !== 'export') {
+            generatedUrl = exportUrl;
+            renderExportView(exportUrl);
+          } else if (currentView !== 'export') {
+            showCreateMode();
+          }
         }
       }
 

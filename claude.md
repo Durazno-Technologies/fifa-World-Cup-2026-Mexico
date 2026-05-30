@@ -8,7 +8,7 @@ Este documento define el contrato tecnico que debe respetar cualquier implementa
 - El QR contiene toda la informacion necesaria para lectura.
 - Catalogo de 72 partidos de fase de grupos vive hardcodeado en `src/data/matches.ts`.
 - Resultados reales se llenan manualmente en `src/data/results.ts` conforme avanza el torneo.
-- La URL del QR siempre apunta al dominio oficial: `https://fifa-world-cup-2026-mexico.vercel.app/#q=<payload>`
+- La URL del QR siempre apunta al dominio oficial: `https://mundial.durazno.org/#q=<payload>`
 - Sin backend, sin APIs externas, sin autenticacion.
 
 ## Esquema canonico v1
@@ -40,7 +40,7 @@ Este documento define el contrato tecnico que debe respetar cualquier implementa
 2. Ordenar `p` por `id` ascendente (determinismo).
 3. `json = JSON.stringify(payload)` sin campos extra.
 4. `packed = compressToEncodedURIComponent(json)` (lz-string).
-5. Construir URL final: `https://fifa-world-cup-2026-mexico.vercel.app/#q=${packed}`.
+5. Construir URL final: `https://mundial.durazno.org/#q=${packed}`.
 
 ### Decode
 
@@ -100,7 +100,7 @@ Score total: sticky en el top de la vista readonly, siempre visible.
 
 ## URL del QR
 
-El QR siempre codifica la URL de produccion `https://fifa-world-cup-2026-mexico.vercel.app/#q=...` sin importar el entorno donde se genere (localhost, preview, etc). Esto asegura que los QR funcionan al escanearlos desde cualquier dispositivo.
+El QR siempre codifica la URL de produccion `https://mundial.durazno.org/#q=...` sin importar el entorno donde se genere (localhost, preview, etc). Esto asegura que los QR funcionan al escanearlos desde cualquier dispositivo.
 
 ## Flujo de navegacion
 
@@ -110,11 +110,10 @@ El QR siempre codifica la URL de produccion `https://fifa-world-cup-2026-mexico.
 
 ## Compartir
 
-- En dispositivos con Web Share API + soporte de archivos (iOS/Android): boton "Compartir QR" que envia la imagen PNG directamente via la hoja nativa del sistema.
-- Fallback: solo boton "Descargar QR".
-- No se usa el deep link de WhatsApp con URL de texto (es feo y sospechoso para los usuarios).
+- La exportacion publica es solo por descarga de imagen QR (boton "Descargar QR").
+- No hay boton de compartir nativo ni deep links de WhatsApp.
 
-## Gating del formulario
+## Requerimientos funcionales
 
 - El usuario debe escribir su apodo ANTES de poder ver/llenar los partidos.
 - Los match cards estan ocultos hasta que haya nombre.
@@ -123,7 +122,6 @@ El QR siempre codifica la URL de produccion `https://fifa-world-cup-2026-mexico.
 ## Assets
 
 - Logo: `/public/logo.svg` (isotipo Durazno cuadrado 150x150, fondo transparente).
-- Los archivos `Durazno_isotipo_*@1x.svg` fueron eliminados.
 
 ## Errores tipados
 
@@ -148,7 +146,7 @@ export const RESULTADO_Y_MARCADOR_INCOHERENTES = 'RESULTADO_Y_MARCADOR_INCOHEREN
 - `src/pages/index.astro`: punto de entrada, routing, logica principal.
 - `src/components/PredictionForm.astro`: formulario con gating de nombre.
 - `src/components/MatchCard.astro`: tarjeta de partido individual.
-- `src/components/ExportPanel.astro`: vista de QR generado + botones compartir.
+- `src/components/ExportPanel.astro`: vista de QR generado + boton de descarga.
 - `src/components/ReadOnlyView.astro`: vista readonly con scoring.
 - `src/components/ErrorState.astro`: pantalla de error.
 - `src/data/matches.ts`: 72 partidos de fase de grupos.
@@ -156,3 +154,10 @@ export const RESULTADO_Y_MARCADOR_INCOHERENTES = 'RESULTADO_Y_MARCADOR_INCOHEREN
 - `src/lib/codec.ts`: encode/decode con lz-string.
 - `src/lib/schema.ts`: tipos TypeScript y constantes de error.
 - `src/lib/validators.ts`: validacion de payload y deadline.
+
+## Estado y handoff rapido
+
+- Proyecto en produccion: `https://mundial.durazno.org`.
+- QR canonico en produccion, schema `v=1` estable.
+- Boton DEV mantiene comportamiento aleatorio para los 72 partidos (testing rapido).
+- Sigue pendiente validar horarios/sedes partido a partido contra snapshot externo antes de cerrar fixture.

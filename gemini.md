@@ -8,7 +8,7 @@ Este documento define como esta construida la interfaz de la Quiniela Mundial 20
 - Estilos: Tailwind CSS v4 con tokens en `src/styles/global.css`.
 - QR local estilizado: `qr-code-styling` v1.9.
 - Compresion payload: `lz-string`.
-- Deploy: Vercel (dominio: `fifa-world-cup-2026-mexico.vercel.app`).
+- Deploy: Vercel (dominio: `mundial.durazno.org`).
 
 ## Estructura del proyecto
 
@@ -19,7 +19,7 @@ src/
   components/
     MatchCard.astro      # Tarjeta de partido (selects de goles, badge resultado)
     PredictionForm.astro # Formulario con gating de nombre + grid de partidos
-    ExportPanel.astro    # QR generado + botones de compartir/descargar
+    ExportPanel.astro    # QR generado + boton de descarga
     ReadOnlyView.astro   # Vista readonly con scoring y puntos por card
     ErrorState.astro     # Pantalla de error amigable
   data/
@@ -52,8 +52,7 @@ Flujo:
 ### 2. Modo export (despues de generar QR)
 
 - QR estilizado con logo Durazno centrado.
-- Boton "Compartir QR" (Web Share API con imagen) en moviles.
-- Boton "Descargar QR" como fallback universal.
+- Boton "Descargar QR" como accion unica de exportacion.
 - Vista NO se resetea al perder foco (bug corregido).
 
 ### 3. Modo readonly (URL con `#q=...`)
@@ -114,7 +113,19 @@ Script dev usa `--host` para exponer en red local:
 
 ## Notas importantes
 
-- La URL del QR SIEMPRE usa `https://fifa-world-cup-2026-mexico.vercel.app/` sin importar entorno.
+- La URL del QR SIEMPRE usa `https://mundial.durazno.org/` sin importar entorno.
 - El hashchange NO resetea la vista export (evita bug de perdida al cambiar app).
 - No hay boton de "Copiar URL" (eliminado por decision de producto).
-- El boton de WhatsApp solo aparece si el dispositivo soporta Web Share API con archivos.
+- No existe boton de compartir nativo ni deep links de WhatsApp.
+
+## Snapshot para siguiente LLM
+
+- Produccion estable en `mundial.durazno.org`.
+- Contrato QR congelado en `v=1`; cambios deben preservar compatibilidad.
+- Boton DEV (`Aleatorio`) llena los 72 partidos con marcadores random 0..3.
+- `results.ts` debe tratarse como fuente manual editable durante el torneo.
+- Horarios y estadios siguen marcados como "verificacion pendiente" hasta check externo completo.
+
+## Posibles mejoras futuras
+
+- Verificador CI contra snapshot externo de grupos/partidos/sedes/horarios para evitar datos alucinados.
