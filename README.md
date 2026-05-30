@@ -15,7 +15,7 @@ App web para crear y compartir quinielas de la fase de grupos del Mundial 2026 m
 - **Tailwind CSS v4**
 - **qr-code-styling** para QR estilizado con logo
 - **lz-string** para compresion de payload en URL
-- **Vercel** para deploy (dominio: `mundial.durazno.org`)
+- **Vercel** para deploy (dominio: `fifa-world-cup-2026-mexico.vercel.app`)
 
 ## Desarrollo
 
@@ -54,4 +54,4 @@ Durante el mundial, se actualiza `src/data/results.ts` con los marcadores reales
 
 ## Dominio
 
-El QR siempre codifica `https://mundial.durazno.org/#q=...` sin importar donde se genere.
+El QR siempre codifica `https://fifa-world-cup-2026-mexico.vercel.app/#q=...` sin importar donde se genere.

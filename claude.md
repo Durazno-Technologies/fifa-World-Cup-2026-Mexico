@@ -8,7 +8,7 @@ Este documento define el contrato tecnico que debe respetar cualquier implementa
 - El QR contiene toda la informacion necesaria para lectura.
 - Catalogo de 72 partidos de fase de grupos vive hardcodeado en `src/data/matches.ts`.
 - Resultados reales se llenan manualmente en `src/data/results.ts` conforme avanza el torneo.
-- La URL del QR siempre apunta al dominio oficial: `https://mundial.durazno.org/#q=<payload>`
+- La URL del QR siempre apunta al dominio oficial: `https://fifa-world-cup-2026-mexico.vercel.app/#q=<payload>`
 - Sin backend, sin APIs externas, sin autenticacion.
 
 ## Esquema canonico v1
@@ -40,7 +40,7 @@ Este documento define el contrato tecnico que debe respetar cualquier implementa
 2. Ordenar `p` por `id` ascendente (determinismo).
 3. `json = JSON.stringify(payload)` sin campos extra.
 4. `packed = compressToEncodedURIComponent(json)` (lz-string).
-5. Construir URL final: `https://mundial.durazno.org/#q=${packed}`.
+5. Construir URL final: `https://fifa-world-cup-2026-mexico.vercel.app/#q=${packed}`.
 
 ### Decode
 
@@ -100,7 +100,7 @@ Score total: sticky en el top de la vista readonly, siempre visible.
 
 ## URL del QR
 
-El QR siempre codifica la URL de produccion `https://mundial.durazno.org/#q=...` sin importar el entorno donde se genere (localhost, preview, etc). Esto asegura que los QR funcionan al escanearlos desde cualquier dispositivo.
+El QR siempre codifica la URL de produccion `https://fifa-world-cup-2026-mexico.vercel.app/#q=...` sin importar el entorno donde se genere (localhost, preview, etc). Esto asegura que los QR funcionan al escanearlos desde cualquier dispositivo.
 
 ## Flujo de navegacion
 

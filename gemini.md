@@ -8,7 +8,7 @@ Este documento define como esta construida la interfaz de la Quiniela Mundial 20
 - Estilos: Tailwind CSS v4 con tokens en `src/styles/global.css`.
 - QR local estilizado: `qr-code-styling` v1.9.
 - Compresion payload: `lz-string`.
-- Deploy: Vercel (dominio: `mundial.durazno.org`).
+- Deploy: Vercel (dominio: `fifa-world-cup-2026-mexico.vercel.app`).
 
 ## Estructura del proyecto
 
@@ -114,7 +114,7 @@ Script dev usa `--host` para exponer en red local:
 
 ## Notas importantes
 
-- La URL del QR SIEMPRE usa `https://mundial.durazno.org/` sin importar entorno.
+- La URL del QR SIEMPRE usa `https://fifa-world-cup-2026-mexico.vercel.app/` sin importar entorno.
 - El hashchange NO resetea la vista export (evita bug de perdida al cambiar app).
 - No hay boton de "Copiar URL" (eliminado por decision de producto).
 - El boton de WhatsApp solo aparece si el dispositivo soporta Web Share API con archivos.
