@@ -1,176 +1,120 @@
 # gemini.md - Guia de implementacion frontend
 
-Este documento define como construir la interfaz en Astro para la Quiniela Mundial 2026 de Durazno.
+Este documento define como esta construida la interfaz de la Quiniela Mundial 2026.
 
-## Objetivo para Gemini
+## Stack
 
-Implementar una app web **frontend-only** con 2 modos:
-
-1. Crear quiniela.
-2. Ver quiniela desde QR en solo lectura.
-
-No agregar autenticacion, backend, base de datos, ni roles.
-
-## Stack obligatorio
-
-- Astro + TypeScript.
-- Estilos: Tailwind CSS v4.
-- QR local estilizado: `qr-code-styling`.
+- Astro v6 + TypeScript.
+- Estilos: Tailwind CSS v4 con tokens en `src/styles/global.css`.
+- QR local estilizado: `qr-code-styling` v1.9.
 - Compresion payload: `lz-string`.
+- Deploy: Vercel (dominio: `mundial.durazno.org`).
 
-## Estructura sugerida
+## Estructura del proyecto
 
 ```text
 src/
   pages/
-    index.astro
+    index.astro          # Punto de entrada, routing, logica JS principal
   components/
-    MatchCard.astro
-    PredictionForm.astro
-    ExportPanel.astro
-    QRPreview.astro
-    ReadOnlyView.astro
-    ErrorState.astro
+    MatchCard.astro      # Tarjeta de partido (selects de goles, badge resultado)
+    PredictionForm.astro # Formulario con gating de nombre + grid de partidos
+    ExportPanel.astro    # QR generado + botones de compartir/descargar
+    ReadOnlyView.astro   # Vista readonly con scoring y puntos por card
+    ErrorState.astro     # Pantalla de error amigable
   data/
-    matches.ts
+    matches.ts           # 72 partidos de fase de grupos (hardcoded)
+    results.ts           # Resultados reales (se llena manualmente)
   lib/
-    schema.ts
-    codec.ts
-    qr.ts
-    share.ts
-    validators.ts
+    schema.ts            # Tipos TypeScript y errores tipados
+    codec.ts             # encode/decode con lz-string
+    validators.ts        # Validacion de payload y deadline
   styles/
-    tokens.css
-    app.css
+    global.css           # Tailwind config + tokens de color
 public/
-  brand/
-    durazno-logo.svg
-    ball-icon.svg
+  logo.svg              # Isotipo Durazno cuadrado (150x150, transparente)
+  favicon.svg
+  favicon.ico
 ```
 
-## Contrato funcional de UI
+## Modos de la app
 
-### Modo crear quiniela
+### 1. Modo crear quiniela (sin hash en URL)
 
-- Mostrar partidos de primera fase con datos hardcodeados por ID (48 equipos oficiales del Mundial 2026 ya incluidos en `matches.ts`).
-- **Regla estricta:** Bloquear la creación de nuevas quinielas a partir del 10 de junio de 2026 a las 23:59:59 (hora local) para evitar trampas, validado del lado del cliente.
-- En cada partido capturar:
-  - resultado: Local / Empate / Visita.
-  - marcador: goles local, goles visita.
-- Bloquear exportacion hasta completar todos los partidos.
-- Al exportar pedir nombre visible (1..40 chars).
-- Generar URL con hash `#q=` y QR estilizado.
-- Ofrecer:
-  - Compartir por WhatsApp.
-  - Descargar imagen QR.
-  - Copiar URL.
+Flujo:
+1. Usuario escribe su apodo (obligatorio, max 10 chars).
+2. Solo al tener apodo se desbloquean los 72 partidos.
+3. Titulo cambia dinamicamente a "La Quiniela de XX".
+4. Cada cambio de marcador se guarda en localStorage automaticamente.
+5. Al completar todos los partidos se activa el boton "Crear QR".
+6. Al generar: se crea URL con dominio de produccion, se muestra QR con spinner de carga.
 
-### Modo lectura
+### 2. Modo export (despues de generar QR)
 
-- Se activa si hay `#q=` valido en URL.
-- Decodifica payload y resuelve IDs contra `matches.ts`.
-- Muestra nombre y predicciones.
-- Todo en solo lectura.
-- Si hay error de decode/schema, mostrar estado de error amigable.
+- QR estilizado con logo Durazno centrado.
+- Boton "Compartir QR" (Web Share API con imagen) en moviles.
+- Boton "Descargar QR" como fallback universal.
+- Vista NO se resetea al perder foco (bug corregido).
 
-## Esquema de datos
+### 3. Modo readonly (URL con `#q=...`)
 
-Payload logico (previo a compresion):
+- Decodifica payload y muestra predicciones.
+- Sistema de scoring: +3 marcador exacto, +1 resultado correcto, +0 fallo.
+- Score sticky en top siempre visible.
+- Cards se iluminan segun puntaje (+3 brilla esmeralda, +1 borde azul).
+- Nombre del equipo favorito resaltado en color (verde local, azul visita).
+- Limpia localStorage al entrar (unica condicion de limpieza).
 
-```ts
-type Resultado = "L" | "E" | "V";
+## Diseño visual
 
-type Pred = [
-  idPartido: number,
-  resultado: Resultado,
-  golesLocal: number,
-  golesVisita: number,
-];
+- Header: "FIFA World Cup 2026" con emoticons de paises sede.
+- Footer: "Powered by Durazno Technologies" con logo pequeño.
+- Countdown con colores semaforo (verde/amarillo/rojo segun tiempo restante).
+- Formato de hora: AM/PM con iconos (amanecer/sol/luna).
+- Match cards: "Grupo A" completo (no abreviado), guion centrado entre selects.
+- Nombre del usuario resaltado en color naranja (dz-orange) en todas las vistas.
 
-type QuinielaPayloadV1 = {
-  v: 1;
-  n: string;
-  p: Pred[];
-};
-```
-
-## Reglas de validacion
-
-- Nombre obligatorio, trim, max 40.
-- IDs unicos en `p`.
-- Todos los IDs deben existir en `matches.ts`.
-- Goles enteros `0..99`.
-- Coherencia resultado/marcador:
-  - `L` => golesLocal > golesVisita
-  - `E` => golesLocal === golesVisita
-  - `V` => golesLocal < golesVisita
-
-## QR local estilizado
-
-Usar `qr-code-styling` con:
-
-- `type: "canvas"` para export PNG rapido.
-- Correccion de error `H`.
-- Quiet zone amplia.
-- Colores de marca de alto contraste.
-- Imagen central combinada (logo Durazno + balon) en SVG.
-
-Parametros sugeridos:
+## QR estilizado
 
 ```ts
 {
-  width: 1080,
-  height: 1080,
-  qrOptions: { errorCorrectionLevel: "H" },
-  dotsOptions: { type: "rounded" },
-  cornersSquareOptions: { type: "extra-rounded" },
-  cornersDotOptions: { type: "dot" },
-  imageOptions: { imageSize: 0.16, margin: 8 }
+  width: 400,
+  height: 400,
+  margin: 8,
+  qrOptions: { errorCorrectionLevel: 'H' },
+  imageOptions: { hideBackgroundDots: true, imageSize: 0.25, margin: 6 },
+  image: '/logo.svg',
+  dotsOptions: { type: 'rounded', color: '#201E47' },
+  cornersSquareOptions: { type: 'extra-rounded', color: '#FF4B1F' },
+  cornersDotOptions: { type: 'dot', color: '#FF4B1F' },
+  backgroundOptions: { color: '#ffffff' }
 }
 ```
 
-## Diseño visual (no generico)
+## Tokens de color
 
-- Idioma completo: espanol.
-- Tema mundialista con identidad Durazno:
-  - paleta esmeralda/verde azulado basada en Tailwind CSS (`emerald`, `teal`) con acentos brillantes (evitar look neutro aburrido).
-  - fondos con gradiente suave y texturas ligeras.
-  - tarjetas con bordes redondeados consistentes.
-- Tipografia con personalidad (no default browser).
-- Carga inicial rapida, layout estable, mobile-first.
+- `--color-dz-orange: #FF4B1F` (CTA, QR corners, nombre resaltado)
+- `--color-dz-green: #7DD934` (local gana, progreso)
+- `--color-dz-dark: #201E47` (QR dots, visita gana, texto)
+- `--color-dz-light: #E3E3E3` (inputs, fondos)
 
-## Performance y calidad
+## Persistencia
 
-- Evitar hidratar toda la pagina; hidratar solo componentes interactivos.
-- Evitar dependencias pesadas fuera de QR y compresion.
-- Probar Lighthouse mobile (objetivo >= 90 en performance).
-- Test manual en viewport pequeno y grande.
+- localStorage clave `quiniela_draft`: guarda nombre + todos los marcadores.
+- Se guarda en cada cambio (onchange de selects, oninput de nombre).
+- Se restaura al cargar la pagina en modo crear.
+- Solo se borra al entrar en modo readonly (visualizar quiniela de otro).
 
-## Accesibilidad
+## Red local para testing movil
 
-- Labels claros en inputs.
-- Focus visible.
-- Contraste suficiente.
-- Mensajes de error explicitos.
-- Botones de accion con texto claro (`Compartir`, `Descargar QR`, `Copiar enlace`).
-
-## Flujo de implementacion sugerido
-
-```mermaid
-flowchart LR
-  A[Crear catalogo matches.ts] --> B[Construir formulario de pronosticos]
-  B --> C[Validar completitud y coherencia]
-  C --> D[Serializar + comprimir hash q]
-  D --> E[Renderizar QR estilizado]
-  E --> F[Integrar compartir y descarga]
-  F --> G[Construir modo solo lectura]
-  G --> H[Agregar estados de error y UX final]
+Script dev usa `--host` para exponer en red local:
+```json
+"dev": "astro dev --host"
 ```
 
-## Definicion de terminado
+## Notas importantes
 
-- Dos modos completos (crear y leer).
-- QR funcional en `https://mundial.durazno.org/#q=...`.
-- Compartir WhatsApp y descarga funcionando.
-- Sin backend, sin APIs externas.
-- Textos y UX listos para usuario mexicano.
+- La URL del QR SIEMPRE usa `https://mundial.durazno.org/` sin importar entorno.
+- El hashchange NO resetea la vista export (evita bug de perdida al cambiar app).
+- No hay boton de "Copiar URL" (eliminado por decision de producto).
+- El boton de WhatsApp solo aparece si el dispositivo soporta Web Share API con archivos.

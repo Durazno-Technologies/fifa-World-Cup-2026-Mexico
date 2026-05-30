@@ -4,33 +4,66 @@ export interface Props {
   match: Match;
 }
 const { match } = Astro.props;
+
+const goals = Array.from({ length: 16 }, (_, i) => i);
+
+function formatTime(dateStr: string): { time: string; icon: string } {
+  const timeMatch = dateStr.match(/(\d{1,2}):(\d{2})/);
+  if (!timeMatch) return { time: dateStr, icon: '' };
+  const hour = parseInt(timeMatch[1]);
+  const min = timeMatch[2];
+  const isPM = hour >= 12;
+  const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  let icon: string;
+  if (hour >= 6 && hour < 12) {
+    icon = '🌅';
+  } else if (hour >= 12 && hour < 19) {
+    icon = '☀️';
+  } else {
+    icon = '🌑';
+  }
+  return { time: `${hour12}:${min} ${isPM ? 'PM' : 'AM'}`, icon };
+}
+
+const dateParts = match.dateStr.split(',');
+const dateOnly = dateParts[0]?.trim() || match.dateStr;
+const { time, icon } = formatTime(match.dateStr);
 ---
-<div class="match-card bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 flex flex-col gap-3 border border-gray-100 dark:border-gray-700 transition-all hover:shadow-md" data-match-id={match.id}>
-  <div class="text-xs text-center text-gray-500 font-semibold tracking-wider uppercase">
-    Grupo {match.group} • {match.dateStr}
+<div class="match-card bg-white dark:bg-dz-dark/30 rounded-2xl shadow-sm p-3 md:p-4 flex flex-col gap-2 border border-gray-100 dark:border-gray-800 transition-all hover:shadow-md relative overflow-hidden" data-match-id={match.id}>
+  <div class="text-[10px] md:text-xs text-center text-gray-500 font-bold tracking-widest uppercase">
+    Grupo {match.group} • {dateOnly}, {icon} {time}
   </div>
-  
-  <div class="flex items-center justify-between gap-2">
+  <div class="text-[9px] md:text-[10px] text-center text-gray-400 mt-[-4px]">
+    📍 {match.stadium}
+  </div>
+
+  <div class="flex items-center gap-1 md:gap-2 mt-1">
     <!-- Local -->
-    <div class="flex-1 text-right flex flex-col">
-      <span class="font-bold text-gray-800 dark:text-gray-100">{match.local}</span>
+    <div class="flex-1 text-right flex flex-col justify-center min-w-0">
+      <span class="font-bold text-gray-800 dark:text-gray-100 text-sm md:text-base leading-tight">{match.local}</span>
     </div>
-    
-    <!-- Score inputs -->
-    <div class="flex items-center gap-2 px-2">
-      <input type="number" min="0" max="99" class="w-12 h-12 text-center text-xl font-bold bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none score-input-local" placeholder="-" />
-      <span class="text-gray-400 font-bold">-</span>
-      <input type="number" min="0" max="99" class="w-12 h-12 text-center text-xl font-bold bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none score-input-visita" placeholder="-" />
+
+    <!-- Score selects - centered block -->
+    <div class="flex items-center gap-1 shrink-0">
+      <select class="appearance-none w-12 md:w-14 h-10 md:h-12 text-center text-lg md:text-xl font-black bg-dz-light/50 dark:bg-black/40 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-dz-orange focus:border-dz-orange outline-none score-input-local text-dz-dark dark:text-white cursor-pointer shadow-inner">
+        <option value="" disabled selected>-</option>
+        {goals.map(g => <option value={g}>{g}</option>)}
+      </select>
+      <span class="text-gray-400 font-black text-base shrink-0 w-3 text-center leading-none">–</span>
+      <select class="appearance-none w-12 md:w-14 h-10 md:h-12 text-center text-lg md:text-xl font-black bg-dz-light/50 dark:bg-black/40 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-dz-orange focus:border-dz-orange outline-none score-input-visita text-dz-dark dark:text-white cursor-pointer shadow-inner">
+        <option value="" disabled selected>-</option>
+        {goals.map(g => <option value={g}>{g}</option>)}
+      </select>
     </div>
 
     <!-- Visita -->
-    <div class="flex-1 text-left flex flex-col">
-      <span class="font-bold text-gray-800 dark:text-gray-100">{match.visita}</span>
+    <div class="flex-1 text-left flex flex-col justify-center min-w-0">
+      <span class="font-bold text-gray-800 dark:text-gray-100 text-sm md:text-base leading-tight">{match.visita}</span>
     </div>
   </div>
-  
+
   <!-- Result indicator -->
-  <div class="text-center mt-1 h-6">
-    <span class="inline-block px-3 py-1 rounded-full text-[10px] font-bold transition-colors duration-200 bg-gray-100 text-gray-400 result-badge opacity-0">...</span>
+  <div class="text-center mt-1 h-5 flex justify-center items-center">
+    <span class="inline-block px-3 py-0.5 rounded-full text-[10px] font-bold transition-colors duration-200 bg-gray-100 text-gray-400 result-badge opacity-0">...</span>
   </div>
 </div>

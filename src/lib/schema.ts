@@ -1,22 +1,15 @@
 export type Resultado = "L" | "E" | "V";
 
-export type Pred = [
-  idPartido: number,
-  resultado: Resultado,
-  golesLocal: number,
-  golesVisita: number
-];
-
 export type QuinielaPayloadV1 = {
   v: 1;
   n: string;
-  p: Pred[];
+  p: [number, Resultado, number, number][];
 };
 
-export const ERR_Q_MISSING = 'ERR_Q_MISSING';
-export const ERR_Q_CORRUPT = 'ERR_Q_CORRUPT';
-export const ERR_SCHEMA_UNSUPPORTED_VERSION = 'ERR_SCHEMA_UNSUPPORTED_VERSION';
-export const ERR_SCHEMA_INVALID = 'ERR_SCHEMA_INVALID';
-export const ERR_PRED_DUPLICATE_MATCH = 'ERR_PRED_DUPLICATE_MATCH';
-export const ERR_PRED_UNKNOWN_MATCH = 'ERR_PRED_UNKNOWN_MATCH';
-export const ERR_PRED_INCONSISTENT_SCORE = 'ERR_PRED_INCONSISTENT_SCORE';
+export const FALTA_QUINIELA = 'FALTA_QUINIELA';
+export const QUINIELA_CORRUPTA_O_INVALIDA = 'QUINIELA_CORRUPTA_O_INVALIDA';
+export const VERSION_DE_QUINIELA_NO_SOPORTADA = 'VERSION_DE_QUINIELA_NO_SOPORTADA';
+export const DATOS_DE_QUINIELA_INVALIDOS = 'DATOS_DE_QUINIELA_INVALIDOS';
+export const PARTIDO_DUPLICADO_EN_QUINIELA = 'PARTIDO_DUPLICADO_EN_QUINIELA';
+export const PARTIDO_DESCONOCIDO_EN_QUINIELA = 'PARTIDO_DESCONOCIDO_EN_QUINIELA';
+export const RESULTADO_Y_MARCADOR_INCOHERENTES = 'RESULTADO_Y_MARCADOR_INCOHERENTES';

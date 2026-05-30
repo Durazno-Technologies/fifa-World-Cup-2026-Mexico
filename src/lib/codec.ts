@@ -1,5 +1,5 @@
 import LZString from 'lz-string';
-import { ERR_Q_CORRUPT, ERR_SCHEMA_INVALID, ERR_SCHEMA_UNSUPPORTED_VERSION, type QuinielaPayloadV1 } from './schema';
+import { QUINIELA_CORRUPTA_O_INVALIDA, DATOS_DE_QUINIELA_INVALIDOS, VERSION_DE_QUINIELA_NO_SOPORTADA, type QuinielaPayloadV1 } from './schema';
 import { validatePayload } from './validators';
 
 export function encodePayload(payload: QuinielaPayloadV1): string {
@@ -8,7 +8,7 @@ export function encodePayload(payload: QuinielaPayloadV1): string {
   const cleanPayload: QuinielaPayloadV1 = {
     v: 1,
     n: payload.n.trim(),
-    p: sortedP
+    p: sortedP as QuinielaPayloadV1['p']
   };
   
   const jsonStr = JSON.stringify(cleanPayload);
@@ -19,22 +19,22 @@ export function decodePayload(q: string): { payload?: QuinielaPayloadV1; error?:
   try {
     const jsonStr = LZString.decompressFromEncodedURIComponent(q);
     if (!jsonStr) {
-      return { error: ERR_Q_CORRUPT };
+      return { error: QUINIELA_CORRUPTA_O_INVALIDA };
     }
     
     const payload = JSON.parse(jsonStr) as any;
     
     if (payload.v !== 1) {
-      return { error: ERR_SCHEMA_UNSUPPORTED_VERSION };
+      return { error: VERSION_DE_QUINIELA_NO_SOPORTADA };
     }
     
     const validation = validatePayload(payload);
     if (!validation.valid) {
-      return { error: validation.error || ERR_SCHEMA_INVALID };
+      return { error: validation.error || DATOS_DE_QUINIELA_INVALIDOS };
     }
     
     return { payload };
   } catch (err) {
-    return { error: ERR_Q_CORRUPT };
+    return { error: QUINIELA_CORRUPTA_O_INVALIDA };
   }
 }

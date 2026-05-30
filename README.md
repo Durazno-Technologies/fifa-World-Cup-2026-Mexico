@@ -1,134 +1,57 @@
-# Quiniela Mundial 2026 - Durazno
+# Quiniela Mundial 2026
 
-Aplicacion web para crear y compartir una quiniela de **solo primera fase** del Mundial 2026 mediante QR. El objetivo es diversion social: sin apuestas, sin login, sin base de datos, sin edicion posterior.
+App web para crear y compartir quinielas de la fase de grupos del Mundial 2026 mediante QR. Sin backend, sin login, sin base de datos.
 
-## Objetivo del producto
+## Objetivo
 
-- Cualquier visitante puede llenar su quiniela de primera fase.
-- Al terminar, agrega su nombre y exporta un QR.
-- Cualquier persona escanea el QR y ve los resultados en modo solo lectura.
-- Todo sucede en frontend, sin backend obligatorio.
+- Llenar pronosticos de los 72 partidos de primera fase.
+- Generar un QR con tu quiniela codificada.
+- Compartir la imagen del QR por WhatsApp u otras apps.
+- Cualquier persona escanea el QR y ve tus pronosticos + puntaje en tiempo real.
 
-## Alcance
+## Stack
 
-Incluye:
-- Primera fase completa.
-- Pronostico por partido: resultado (local/empate/visita) y marcador.
-- Exportacion a QR con nombre del creador.
-- Vista de lectura desde URL QR en `https://mundial.durazno.org`.
-- Compartir directo por WhatsApp y descarga de imagen QR.
+- **Astro v6** + TypeScript
+- **Tailwind CSS v4**
+- **qr-code-styling** para QR estilizado con logo
+- **lz-string** para compresion de payload en URL
+- **Vercel** para deploy (dominio: `mundial.durazno.org`)
 
-No incluye:
-- Eliminatorias.
-- Calculo de campeon.
-- Persistencia en servidor o BD.
-- Cuentas, autenticacion o permisos.
+## Desarrollo
 
-## Arquitectura (sin backend)
-
-```mermaid
-flowchart TD
-  A[Usuario abre app] --> B{Existe hash q en URL?}
-  B -- No --> C[Llenar pronosticos primera fase]
-  C --> D[Validar todos los partidos]
-  D --> E[Capturar nombre]
-  E --> F[Serializar y comprimir payload]
-  F --> G[Generar URL con #q=...]
-  G --> H[Generar QR estilizado local]
-  H --> I[Descargar imagen o compartir WhatsApp]
-
-  B -- Si --> J[Decodificar payload]
-  J --> K[Resolver IDs contra catalogo hardcodeado]
-  K --> L[Mostrar quiniela en solo lectura]
+```bash
+npm install
+npm run dev        # Abre en http://localhost:4321 + red local
+npm run build      # Build estatico
+npm run preview    # Preview del build
 ```
 
-### Stack recomendado
+El script `dev` usa `--host` para exponer en red local y probar en dispositivos moviles.
 
-- Frontend: Astro + TypeScript + Tailwind CSS v4.
-- QR local estilizado: `qr-code-styling`.
-- Compresion para URL: `lz-string`.
-- Sin APIs de terceros para generar QR.
+## Arquitectura
 
-## Datos de partidos
-
-Los datos de primera fase van hardcodeados en el frontend y nunca se exportan en el QR:
-
-- `id` entero corto.
-- nombre local.
-- nombre visita.
-- fecha/hora.
-- sede.
-
-El QR solo guarda pronosticos por `id`.
-
-## Contrato de payload (v1)
-
-JSON logico antes de comprimir:
-
-```json
-{
-  "v": 1,
-  "n": "Juan",
-  "p": [[1,"L",2,1],[2,"E",0,0],[3,"V",1,3]]
-}
+```
+URL sin hash → Modo crear quiniela
+URL con #q=<payload> → Modo readonly (ver quiniela de alguien)
 ```
 
-Reglas:
-- `v`: version de esquema.
-- `n`: nombre visible (1..40 caracteres).
-- `p`: lista de pronosticos.
-- cada pronostico: `[idPartido, resultado, golesLocal, golesVisita]`.
-- `resultado`: `L` (gana local), `E` (empate), `V` (gana visita).
+Todo el estado vive en:
+1. **URL hash**: payload comprimido con lz-string (la quiniela completa).
+2. **localStorage**: borrador mientras llenas la quiniela (se restaura si cierras la app).
+3. **`src/data/results.ts`**: resultados reales del mundial (se actualiza manualmente).
 
-Empaquetado recomendado:
-1. `JSON.stringify(payload)`
-2. `compressToEncodedURIComponent(...)`
-3. URL final: `https://mundial.durazno.org/#q=<payload>`
+## Scoring
 
-## UX y diseno
+- **+3 puntos**: acertar marcador exacto.
+- **+1 punto**: acertar resultado (L/E/V) pero no el marcador.
+- **+0 puntos**: fallo total.
 
-- Todo el texto en espanol (enfoque Mexico).
-- Mobile first.
-- Flujo de 2 modos claros:
-  - Crear quiniela.
-  - Ver quiniela escaneada.
-- QR con estilo mundialista y branding Durazno (no generico).
-- Buen contraste para escaneo confiable.
+Los puntos se calculan automaticamente al ver una quiniela si hay resultados cargados en `results.ts`.
 
-### Reglas de QR estilizado
+## Deploy y actualizacion de resultados
 
-- Correccion de error alta (`H`).
-- Quiet zone visible.
-- Logo centrado pequeno (12-18% del area).
-- Colores con contraste fuerte (fondo claro, modulos oscuros).
-- Probar escaneo en iOS y Android.
+Durante el mundial, se actualiza `src/data/results.ts` con los marcadores reales y se hace deploy. Los QR existentes siguen funcionando sin cambios ya que la data del usuario esta en la URL.
 
-## Compartir
+## Dominio
 
-Orden recomendado de acciones:
-1. `navigator.share` si esta disponible (incluyendo imagen si es posible).
-2. Fallback a abrir WhatsApp con URL de lectura.
-3. Fallback final: copiar URL y boton de descarga PNG/SVG.
-
-## Criterios de aceptacion
-
-- Se puede llenar toda la primera fase sin errores de validacion.
-- No se permite exportar si falta al menos un partido.
-- El QR abre `https://mundial.durazno.org/#q=...` y muestra datos en solo lectura.
-- La vista de lectura no ofrece acciones de editar ni borrar.
-- El QR se puede descargar y compartir por WhatsApp.
-- No se usa backend ni API externa para generar QR.
-
-## Riesgos y mitigacion
-
-- Payload demasiado grande para QR:
-  - usar formato compacto + compresion.
-  - limitar longitud de nombre.
-- Escaneo dificil por exceso de estilo:
-  - mantener contraste y tamano de logo dentro de limites.
-- Datos corruptos en hash:
-  - validar schema y mostrar error amable.
-
-## Licencia de implementacion
-
-Este repo sirve como contrato funcional y tecnico para que otros LLM implementen frontend y pruebas de forma consistente.
+El QR siempre codifica `https://mundial.durazno.org/#q=...` sin importar donde se genere.

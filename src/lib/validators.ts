@@ -1,10 +1,21 @@
 import { matches } from '../data/matches';
-import { ERR_PRED_DUPLICATE_MATCH, ERR_PRED_INCONSISTENT_SCORE, ERR_PRED_UNKNOWN_MATCH, type Pred, type QuinielaPayloadV1 } from './schema';
+import { 
+  PARTIDO_DUPLICADO_EN_QUINIELA, 
+  RESULTADO_Y_MARCADOR_INCOHERENTES, 
+  PARTIDO_DESCONOCIDO_EN_QUINIELA, 
+  type QuinielaPayloadV1 
+} from './schema';
+
+export const DEV_DEADLINE_ISO = '2026-05-30T10:45:15-06:00';
 
 export function isDeadlinePassed(): boolean {
-  // 10 de junio de 2026 a las 23:59:59 (hora local del dispositivo)
-  const deadline = new Date(2026, 5, 10, 23, 59, 59).getTime();
+  const deadline = new Date(DEV_DEADLINE_ISO).getTime();
   return Date.now() > deadline;
+}
+
+export function getDeadlineTimeLeft(): number {
+  const deadline = new Date(DEV_DEADLINE_ISO).getTime();
+  return Math.max(0, deadline - Date.now());
 }
 
 export function validatePayload(payload: QuinielaPayloadV1): { valid: true } | { valid: false; error: string } {
@@ -12,8 +23,8 @@ export function validatePayload(payload: QuinielaPayloadV1): { valid: true } | {
     return { valid: false, error: 'Versión inválida o payload corrupto' };
   }
   
-  if (typeof payload.n !== 'string' || payload.n.trim() === '' || payload.n.length > 40) {
-    return { valid: false, error: 'Nombre inválido (debe tener entre 1 y 40 caracteres)' };
+  if (typeof payload.n !== 'string' || payload.n.trim() === '' || payload.n.length > 10) {
+    return { valid: false, error: 'Nombre inválido (debe tener entre 1 y 10 caracteres)' };
   }
 
   const seenIds = new Set<number>();
@@ -23,21 +34,21 @@ export function validatePayload(payload: QuinielaPayloadV1): { valid: true } | {
     const [id, r, gl, gv] = pred;
     
     if (!matchIds.has(id)) {
-      return { valid: false, error: ERR_PRED_UNKNOWN_MATCH };
+      return { valid: false, error: PARTIDO_DESCONOCIDO_EN_QUINIELA };
     }
     
     if (seenIds.has(id)) {
-      return { valid: false, error: ERR_PRED_DUPLICATE_MATCH };
+      return { valid: false, error: PARTIDO_DUPLICADO_EN_QUINIELA };
     }
     seenIds.add(id);
 
-    if (typeof gl !== 'number' || typeof gv !== 'number' || gl < 0 || gl > 99 || gv < 0 || gv > 99) {
-      return { valid: false, error: 'Marcador inválido (debe ser entre 0 y 99)' };
+    if (typeof gl !== 'number' || typeof gv !== 'number' || gl < 0 || gl > 15 || gv < 0 || gv > 15) {
+      return { valid: false, error: 'Marcador inválido (debe ser entre 0 y 15)' };
     }
 
-    if (r === 'L' && gl <= gv) return { valid: false, error: ERR_PRED_INCONSISTENT_SCORE };
-    if (r === 'E' && gl !== gv) return { valid: false, error: ERR_PRED_INCONSISTENT_SCORE };
-    if (r === 'V' && gl >= gv) return { valid: false, error: ERR_PRED_INCONSISTENT_SCORE };
+    if (r === 'L' && gl <= gv) return { valid: false, error: RESULTADO_Y_MARCADOR_INCOHERENTES };
+    if (r === 'E' && gl !== gv) return { valid: false, error: RESULTADO_Y_MARCADOR_INCOHERENTES };
+    if (r === 'V' && gl >= gv) return { valid: false, error: RESULTADO_Y_MARCADOR_INCOHERENTES };
   }
 
   return { valid: true };

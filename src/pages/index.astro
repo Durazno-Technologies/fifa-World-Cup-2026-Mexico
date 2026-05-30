@@ -10,25 +10,22 @@ import ErrorState from '../components/ErrorState.astro';
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Quiniela Mundial 2026 - Durazno</title>
+    <title>Quiniela Mundial 2026</title>
     <meta name="description" content="Crea tu quiniela para el Mundial 2026 y compártela con tus amigos." />
-    <style>
-      /* Hide number input spinners */
-      input[type="number"]::-webkit-inner-spin-button,
-      input[type="number"]::-webkit-outer-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-      }
-      input[type="number"] {
-        -moz-appearance: textfield;
-      }
-    </style>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
-  <body class="min-h-screen flex flex-col items-center">
+  <body class="min-h-screen flex flex-col items-center pt-2">
+    <!-- Progress Bar -->
+    <div id="progress-container" class="fixed top-0 left-0 right-0 h-2 bg-gray-200 dark:bg-gray-800 z-50 hidden">
+      <div id="progress-bar" class="h-full bg-gradient-to-r from-dz-orange to-dz-green w-0 transition-all duration-300 ease-out"></div>
+    </div>
+
+    <!-- Header -->
     <header class="w-full max-w-4xl p-4 flex justify-between items-center z-10">
       <div class="flex items-center gap-2">
-        <svg class="w-8 h-8 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.411 0-8-3.589-8-8 0-.482.046-.954.127-1.414l4.58 4.58c.241-.444.646-.788 1.13-.948l.053-1.6c-.636-.201-1.127-.714-1.31-1.364L6.96 9.635c.662-1.362 1.76-2.484 3.14-3.167L11.75 8.12c.594-.287 1.258-.287 1.85 0l1.65-1.652c1.38.683 2.478 1.805 3.14 3.167l-1.62 1.62c-.183.65-.674 1.163-1.31 1.364l.053 1.6c.484.16.889.504 1.13.948l4.58-4.58A7.95 7.95 0 0 1 20 12c0 4.411-3.589 8-8 8z"/></svg>
-        <span class="font-black text-xl tracking-tight text-gray-800 dark:text-gray-100">Durazno <span class="text-emerald-500 font-bold">2026</span></span>
+        <span class="text-xl">⚽</span>
+        <span class="font-black text-xl tracking-tight text-dz-dark dark:text-gray-100">FIFA World Cup <span class="text-dz-orange font-bold">2026</span></span>
+        <span class="text-sm">🇲🇽🇺🇸🇨🇦</span>
       </div>
     </header>
 
@@ -39,64 +36,153 @@ import ErrorState from '../components/ErrorState.astro';
       <ErrorState />
     </main>
 
+    <!-- Footer -->
+    <footer class="w-full py-4 text-center text-xs text-gray-400 dark:text-gray-600">
+      <div class="flex items-center justify-center gap-2">
+        <img src="/logo.svg" alt="Durazno" class="w-4 h-4 opacity-60" />
+        <span>Powered by Durazno Technologies</span>
+      </div>
+    </footer>
+
     <script>
       import { matches } from '../data/matches';
+      import { results } from '../data/results';
       import { decodePayload, encodePayload } from '../lib/codec';
-      import { isDeadlinePassed } from '../lib/validators';
+      import { isDeadlinePassed, getDeadlineTimeLeft } from '../lib/validators';
       import QRCodeStyling from 'qr-code-styling';
+
+      const STORAGE_KEY = 'quiniela_draft';
 
       const predictionView = document.getElementById('prediction-view')!;
       const exportView = document.getElementById('export-view')!;
       const readonlyView = document.getElementById('readonly-view')!;
       const errorView = document.getElementById('error-view')!;
       const errorMessage = document.getElementById('error-message')!;
-      
+
       const form = document.getElementById('quiniela-form') as HTMLFormElement;
       const creatorNameInput = document.getElementById('creator-name') as HTMLInputElement;
       const btnGenerate = document.getElementById('btn-generate') as HTMLButtonElement;
       const qrContainer = document.getElementById('qr-container')!;
 
+      const progressContainer = document.getElementById('progress-container')!;
+      const progressBar = document.getElementById('progress-bar')!;
+      const btnDevFill = document.getElementById('btn-dev-fill')!;
+      const countdownTimer = document.getElementById('countdown-timer')!;
+      const countdownContainer = document.getElementById('countdown-container')!;
+      const predictionTitle = document.getElementById('prediction-title')!;
+      const matchesLockOverlay = document.getElementById('matches-lock-overlay')!;
+      const matchesLockMsg = document.getElementById('matches-lock-msg')!;
+
       let generatedUrl = '';
-      
+      let currentView: 'create' | 'export' | 'readonly' | 'error' = 'create';
+
+      // --- localStorage ---
+      function saveDraft() {
+        const draft: Record<string, { l: string; v: string }> = {};
+        document.querySelectorAll('.match-card').forEach(card => {
+          const id = (card as HTMLElement).dataset.matchId!;
+          const l = (card.querySelector('.score-input-local') as HTMLSelectElement).value;
+          const v = (card.querySelector('.score-input-visita') as HTMLSelectElement).value;
+          if (l !== '' || v !== '') {
+            draft[id] = { l, v };
+          }
+        });
+        const data = { name: creatorNameInput.value, matches: draft };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      }
+
+      function loadDraft() {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        try {
+          const data = JSON.parse(raw);
+          if (data.name) {
+            creatorNameInput.value = data.name;
+          }
+          if (data.matches) {
+            document.querySelectorAll('.match-card').forEach(card => {
+              const id = (card as HTMLElement).dataset.matchId!;
+              const saved = data.matches[id];
+              if (saved) {
+                const l = card.querySelector('.score-input-local') as HTMLSelectElement;
+                const v = card.querySelector('.score-input-visita') as HTMLSelectElement;
+                if (saved.l !== '') l.value = saved.l;
+                if (saved.v !== '') v.value = saved.v;
+                updateCardBadge(card as HTMLElement);
+              }
+            });
+          }
+        } catch {}
+      }
+
+      // --- Name gating ---
+      function updateNameGating() {
+        const hasName = creatorNameInput.value.trim().length > 0;
+        if (hasName) {
+          form.classList.remove('hidden');
+          matchesLockOverlay.classList.add('hidden');
+          predictionTitle.textContent = `La Quiniela de ${creatorNameInput.value.trim()}`;
+        } else {
+          form.classList.add('hidden');
+          matchesLockOverlay.classList.remove('hidden');
+          predictionTitle.textContent = 'Mi Quiniela';
+        }
+      }
+
+      // --- Badge updates ---
       function updateCardBadge(card: HTMLElement) {
-        const localInput = card.querySelector('.score-input-local') as HTMLInputElement;
-        const visitaInput = card.querySelector('.score-input-visita') as HTMLInputElement;
+        const localInput = card.querySelector('.score-input-local') as HTMLSelectElement;
+        const visitaInput = card.querySelector('.score-input-visita') as HTMLSelectElement;
         const badge = card.querySelector('.result-badge') as HTMLElement;
-        
+
         const gl = parseInt(localInput.value);
         const gv = parseInt(visitaInput.value);
-        
-        badge.classList.remove('opacity-0', 'bg-gray-100', 'text-gray-400', 'bg-emerald-100', 'text-emerald-700', 'bg-blue-100', 'text-blue-700', 'bg-amber-100', 'text-amber-700');
-        
+
+        badge.classList.remove('opacity-0', 'bg-gray-100', 'text-gray-400', 'bg-dz-green', 'text-white', 'bg-dz-dark', 'bg-yellow-400', 'text-yellow-900');
+
         if (isNaN(gl) || isNaN(gv)) {
           badge.classList.add('opacity-0');
           return;
         }
 
         if (gl > gv) {
-          badge.textContent = 'Gana Local';
-          badge.classList.add('bg-emerald-100', 'text-emerald-700');
+          badge.textContent = 'Local';
+          badge.classList.add('bg-dz-green', 'text-white');
         } else if (gl < gv) {
-          badge.textContent = 'Gana Visita';
-          badge.classList.add('bg-blue-100', 'text-blue-700');
+          badge.textContent = 'Visita';
+          badge.classList.add('bg-dz-dark', 'text-white');
         } else {
           badge.textContent = 'Empate';
-          badge.classList.add('bg-amber-100', 'text-amber-700');
+          badge.classList.add('bg-yellow-400', 'text-yellow-900');
         }
       }
 
       function checkFormValidity() {
-        let allFilled = true;
+        let filledCount = 0;
+        const totalMatches = matches.length;
+
         document.querySelectorAll('.match-card').forEach(card => {
-          const l = (card.querySelector('.score-input-local') as HTMLInputElement).value;
-          const v = (card.querySelector('.score-input-visita') as HTMLInputElement).value;
-          if (l === '' || v === '') allFilled = false;
+          const l = (card.querySelector('.score-input-local') as HTMLSelectElement).value;
+          const v = (card.querySelector('.score-input-visita') as HTMLSelectElement).value;
+          if (l !== '' && v !== '') {
+            filledCount++;
+          }
         });
+
+        const percentage = (filledCount / totalMatches) * 100;
+        progressBar.style.width = `${percentage}%`;
+
         const hasName = creatorNameInput.value.trim().length > 0;
-        
-        btnGenerate.disabled = !allFilled || !hasName || isDeadlinePassed();
+
+        btnGenerate.disabled = (filledCount < totalMatches) || !hasName || isDeadlinePassed();
         if (isDeadlinePassed()) {
           btnGenerate.textContent = 'Fecha límite alcanzada';
+        } else if (!hasName) {
+          btnGenerate.textContent = 'Escribe tu apodo';
+        } else if (filledCount < totalMatches) {
+          btnGenerate.textContent = `Faltan ${totalMatches - filledCount}`;
+        } else {
+          btnGenerate.textContent = 'Crear QR';
         }
       }
 
@@ -107,30 +193,90 @@ import ErrorState from '../components/ErrorState.astro';
         readonlyView.classList.add('hidden');
         errorView.classList.add('hidden');
         errorView.classList.remove('flex');
+        progressContainer.classList.add('hidden');
       }
 
-      async function showCreateMode() {
+      function formatCountdown(ms: number): string {
+        const totalSecs = Math.floor(ms / 1000);
+        const days = Math.floor(totalSecs / 86400);
+        const hrs = Math.floor((totalSecs % 86400) / 3600);
+        const mins = Math.floor((totalSecs % 3600) / 60);
+
+        if (days > 0) {
+          return `${days}d ${hrs}h ${mins}m`;
+        }
+        const secs = totalSecs % 60;
+        return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+
+      function updateCountdownColor(ms: number) {
+        const days = Math.floor(ms / (1000 * 86400));
+        countdownContainer.className = 'mt-4 inline-flex items-center justify-center font-bold px-5 py-2.5 rounded-full text-sm shadow-sm transition-colors border';
+
+        if (days >= 7) {
+          countdownContainer.classList.add('bg-green-100', 'dark:bg-green-900/40', 'border-green-200', 'dark:border-green-800', 'text-green-700', 'dark:text-green-400');
+        } else if (days >= 1) {
+          countdownContainer.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40', 'border-yellow-200', 'dark:border-yellow-800', 'text-yellow-700', 'dark:text-yellow-400');
+        } else {
+          countdownContainer.classList.add('bg-red-100', 'dark:bg-red-900/40', 'border-red-200', 'dark:border-red-800', 'text-red-700', 'dark:text-red-400');
+        }
+      }
+
+      function updateCountdown() {
+        if (isDeadlinePassed()) {
+          countdownTimer.textContent = 'Cerrada';
+          checkFormValidity();
+          return;
+        }
+        const left = getDeadlineTimeLeft();
+        countdownTimer.textContent = formatCountdown(left);
+        updateCountdownColor(left);
+        requestAnimationFrame(updateCountdown);
+      }
+
+      function showCreateMode() {
         hideAllViews();
-        
+        currentView = 'create';
+
         if (isDeadlinePassed()) {
           errorView.classList.remove('hidden');
           errorView.classList.add('flex');
           errorMessage.textContent = "El torneo ya ha comenzado. No es posible crear nuevas quinielas.";
+          currentView = 'error';
           return;
         }
-        
+
         predictionView.classList.remove('hidden');
-        
+        progressContainer.classList.remove('hidden');
+
+        btnDevFill.classList.remove('hidden');
+
+        btnDevFill.onclick = () => {
+          document.querySelectorAll('.match-card').forEach(card => {
+            const l = card.querySelector('.score-input-local') as HTMLSelectElement;
+            const v = card.querySelector('.score-input-visita') as HTMLSelectElement;
+            l.value = Math.floor(Math.random() * 4).toString();
+            v.value = Math.floor(Math.random() * 4).toString();
+            updateCardBadge(card as HTMLElement);
+          });
+          saveDraft();
+          checkFormValidity();
+        };
+
         document.querySelectorAll('.match-card').forEach(card => {
-          const l = card.querySelector('.score-input-local') as HTMLInputElement;
-          const v = card.querySelector('.score-input-visita') as HTMLInputElement;
-          
-          l.addEventListener('input', () => { updateCardBadge(card as HTMLElement); checkFormValidity(); });
-          v.addEventListener('input', () => { updateCardBadge(card as HTMLElement); checkFormValidity(); });
+          const l = card.querySelector('.score-input-local') as HTMLSelectElement;
+          const v = card.querySelector('.score-input-visita') as HTMLSelectElement;
+
+          l.onchange = () => { updateCardBadge(card as HTMLElement); checkFormValidity(); saveDraft(); };
+          v.onchange = () => { updateCardBadge(card as HTMLElement); checkFormValidity(); saveDraft(); };
         });
-        
-        creatorNameInput.addEventListener('input', checkFormValidity);
+
+        creatorNameInput.oninput = () => { updateNameGating(); checkFormValidity(); saveDraft(); };
+
+        loadDraft();
+        updateNameGating();
         checkFormValidity();
+        updateCountdown();
       }
 
       function getResultFromScore(gl: number, gv: number) {
@@ -141,157 +287,211 @@ import ErrorState from '../components/ErrorState.astro';
 
       function handleGenerate(e: Event) {
         e.preventDefault();
-        
+
         const p: Array<[number, "L"|"E"|"V", number, number]> = [];
-        
+
         document.querySelectorAll('.match-card').forEach(card => {
           const id = parseInt((card as HTMLElement).dataset.matchId!);
-          const gl = parseInt((card.querySelector('.score-input-local') as HTMLInputElement).value);
-          const gv = parseInt((card.querySelector('.score-input-visita') as HTMLInputElement).value);
+          const gl = parseInt((card.querySelector('.score-input-local') as HTMLSelectElement).value);
+          const gv = parseInt((card.querySelector('.score-input-visita') as HTMLSelectElement).value);
           const r = getResultFromScore(gl, gv);
           p.push([id, r, gl, gv]);
         });
-        
+
         const payload = {
           v: 1 as const,
           n: creatorNameInput.value.trim(),
           p
         };
-        
+
         const q = encodePayload(payload);
-        const url = new URL(window.location.href);
-        url.hash = `q=${q}`;
-        generatedUrl = url.toString();
-        
+        const productionBase = 'https://mundial.durazno.org/';
+        generatedUrl = `${productionBase}#q=${q}`;
+
         renderExportView(generatedUrl);
       }
 
       function renderExportView(url: string) {
         hideAllViews();
+        currentView = 'export';
         exportView.classList.remove('hidden');
         exportView.classList.add('flex');
-        
-        qrContainer.innerHTML = '';
-        
-        const qrCode = new QRCodeStyling({
-          width: 256,
-          height: 256,
-          data: url,
-          margin: 0,
-          qrOptions: { errorCorrectionLevel: 'H' },
-          imageOptions: { hideBackgroundDots: true, imageSize: 0.2, margin: 4 },
-          dotsOptions: { type: 'rounded', color: '#0f766e' },
-          cornersSquareOptions: { type: 'extra-rounded', color: '#064e3b' },
-          cornersDotOptions: { type: 'dot', color: '#064e3b' }
-        });
-        
-        qrCode.append(qrContainer);
 
-        const btnWa = document.getElementById('btn-share-wa')!;
+        const creatorName = creatorNameInput.value.trim();
+        const titleEl = document.getElementById('export-title')!;
+        titleEl.innerHTML = `¡La quiniela de <span class="text-dz-orange">${creatorName}</span> está lista!`;
+
+        qrContainer.innerHTML = '<div class="flex flex-col items-center justify-center gap-3"><div class="w-10 h-10 border-4 border-dz-orange border-t-transparent rounded-full animate-spin"></div><p class="text-sm text-gray-400">Generando QR...</p></div>';
+
+        const qrCode = new QRCodeStyling({
+          width: 400,
+          height: 400,
+          data: url,
+          margin: 8,
+          qrOptions: { errorCorrectionLevel: 'H' },
+          imageOptions: { hideBackgroundDots: true, imageSize: 0.22, margin: 4, crossOrigin: 'anonymous' },
+          image: '/logo.svg',
+          dotsOptions: { type: 'rounded', color: '#201E47' },
+          cornersSquareOptions: { type: 'extra-rounded', color: '#FF4B1F' },
+          cornersDotOptions: { type: 'dot', color: '#FF4B1F' },
+          backgroundOptions: { color: '#ffffff' }
+        });
+
+        setTimeout(() => {
+          qrContainer.innerHTML = '';
+          qrCode.append(qrContainer);
+        }, 50);
+
         const btnNative = document.getElementById('btn-share-native')!;
-        const btnCopy = document.getElementById('btn-copy-url')!;
         const btnDownload = document.getElementById('btn-download-qr')!;
-        
-        btnWa.onclick = () => {
-          const text = `¡Mira mi quiniela de Durazno 2026!\n${url}`;
-          window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-        };
-        
-        if (navigator.share) {
+
+        async function getQrBlob(): Promise<Blob> {
+          const blob = await qrCode.getRawData('png');
+          if (!blob) throw new Error('No QR data');
+          return blob;
+        }
+
+        let canShareFiles = false;
+        try {
+          canShareFiles = !!(navigator.canShare && navigator.canShare({ files: [new File([''], 'test.png', { type: 'image/png' })] }));
+        } catch {}
+
+        if (canShareFiles) {
           btnNative.classList.remove('hidden');
           btnNative.classList.add('flex');
           btnNative.onclick = async () => {
             try {
-              await navigator.share({
-                title: 'Quiniela Durazno 2026',
-                text: 'Mira mis pronósticos para el Mundial',
-                url: url
-              });
+              const blob = await getQrBlob();
+              const file = new File([blob], `Quiniela-${creatorName}.png`, { type: 'image/png' });
+              await navigator.share({ files: [file], title: `Quiniela de ${creatorName}`, text: `¡Mira la quiniela de ${creatorName} para el Mundial 2026!` });
             } catch (err) {
-              console.log('User cancelled share or error:', err);
+              console.log('Share cancelled or failed:', err);
             }
           };
+        } else {
+          btnNative.classList.add('hidden');
         }
-        
-        btnCopy.onclick = async () => {
-          await navigator.clipboard.writeText(url);
-          const original = btnCopy.innerHTML;
-          btnCopy.innerHTML = '<span class="text-emerald-500 font-bold">¡Copiado!</span>';
-          setTimeout(() => { btnCopy.innerHTML = original; }, 2000);
-        };
-        
+
         btnDownload.onclick = () => {
-          qrCode.download({ name: 'Quiniela-Durazno', extension: 'png' });
+          qrCode.download({ name: `Quiniela-${creatorName}`, extension: 'png' });
         };
       }
 
       function showReadOnlyMode(q: string) {
         hideAllViews();
-        
+        currentView = 'readonly';
+
+        localStorage.removeItem(STORAGE_KEY);
+
         const result = decodePayload(q);
         if (result.error) {
           errorView.classList.remove('hidden');
           errorView.classList.add('flex');
           errorMessage.textContent = result.error;
+          currentView = 'error';
           return;
         }
-        
+
         const payload = result.payload!;
         readonlyView.classList.remove('hidden');
-        document.getElementById('readonly-name')!.textContent = payload.n;
-        
+        const nameEl = document.getElementById('readonly-name')!;
+        nameEl.textContent = payload.n;
+
+        const resultsById = new Map(results.map(r => [r.id, r]));
+        const matchesById = new Map(matches.map(m => [m.id, m]));
+
+        let totalScore = 0;
+
         const container = document.getElementById('readonly-matches')!;
         container.innerHTML = '';
-        
+
         const template = document.getElementById('readonly-match-template') as HTMLTemplateElement;
-        
-        const matchesById = new Map(matches.map(m => [m.id, m]));
-        
+
         payload.p.forEach(pred => {
           const [id, r, gl, gv] = pred;
           const match = matchesById.get(id)!;
-          
+          const realResult = resultsById.get(id);
+
+          let matchPoints = -1;
+
+          if (realResult) {
+            const realR = realResult.golesLocal > realResult.golesVisita ? 'L' : realResult.golesLocal < realResult.golesVisita ? 'V' : 'E';
+            if (gl === realResult.golesLocal && gv === realResult.golesVisita) {
+              matchPoints = 3;
+            } else if (r === realR) {
+              matchPoints = 1;
+            } else {
+              matchPoints = 0;
+            }
+            totalScore += matchPoints;
+          }
+
           const clone = template.content.cloneNode(true) as DocumentFragment;
+          const card = clone.querySelector('.readonly-card') as HTMLElement;
           const dateLabel = clone.querySelector('.group-date-label')!;
-          const nameL = clone.querySelector('.local-name')!;
-          const nameV = clone.querySelector('.visita-name')!;
+          const nameL = clone.querySelector('.local-name')! as HTMLElement;
+          const nameV = clone.querySelector('.visita-name')! as HTMLElement;
           const scoreL = clone.querySelector('.local-score')!;
           const scoreV = clone.querySelector('.visita-score')!;
           const badge = clone.querySelector('.result-badge')!;
-          
+          const pointsBadge = clone.querySelector('.points-badge') as HTMLElement;
+
           dateLabel.textContent = `Grupo ${match.group} • ${match.dateStr}`;
           nameL.textContent = match.local;
           nameV.textContent = match.visita;
           scoreL.textContent = gl.toString();
           scoreV.textContent = gv.toString();
-          
+
           if (r === 'L') {
-            badge.textContent = 'Ganó Local';
-            badge.classList.add('bg-emerald-100', 'text-emerald-700');
+            badge.textContent = 'Le va al Local';
+            badge.classList.add('bg-dz-green/20', 'text-dz-green');
+            nameL.classList.add('text-dz-green', 'font-extrabold');
           } else if (r === 'V') {
-            badge.textContent = 'Ganó Visita';
-            badge.classList.add('bg-blue-100', 'text-blue-700');
+            badge.textContent = 'Le va al Visitante';
+            badge.classList.add('bg-blue-100', 'text-blue-600', 'dark:bg-blue-900/30', 'dark:text-blue-300');
+            nameV.classList.add('text-blue-600', 'dark:text-blue-300', 'font-extrabold');
           } else {
-            badge.textContent = 'Empate';
-            badge.classList.add('bg-amber-100', 'text-amber-700');
+            badge.textContent = 'Predice Empate';
+            badge.classList.add('bg-yellow-100', 'text-yellow-800');
           }
-          
+
+          if (pointsBadge && card) {
+            if (matchPoints === -1) {
+              pointsBadge.textContent = '–';
+              pointsBadge.classList.add('bg-gray-200', 'text-gray-400', 'dark:bg-gray-700', 'dark:text-gray-500');
+            } else if (matchPoints === 3) {
+              pointsBadge.textContent = '+3';
+              pointsBadge.classList.add('bg-emerald-500', 'text-white', 'shadow-lg', 'shadow-emerald-300', 'animate-bounce');
+              card.classList.remove('bg-white', 'dark:bg-gray-800', 'border-gray-100', 'dark:border-gray-700');
+              card.classList.add('ring-2', 'ring-emerald-400', 'bg-gradient-to-br', 'from-emerald-50', 'to-green-50', 'dark:from-emerald-950/40', 'dark:to-green-950/30', 'border-emerald-200', 'dark:border-emerald-700');
+            } else if (matchPoints === 1) {
+              pointsBadge.textContent = '+1';
+              pointsBadge.classList.add('bg-blue-500', 'text-white', 'shadow-md', 'shadow-blue-200');
+              card.classList.remove('border-gray-100', 'dark:border-gray-700');
+              card.classList.add('ring-1', 'ring-blue-300', 'border-blue-200', 'dark:border-blue-700');
+            } else {
+              pointsBadge.textContent = '0';
+              pointsBadge.classList.add('bg-gray-200', 'text-gray-500');
+            }
+          }
+
           container.appendChild(clone);
         });
+
+        const scoreEl = document.getElementById('readonly-score')!;
+        scoreEl.textContent = totalScore.toString();
       }
 
       function route() {
         const hash = window.location.hash;
         if (hash.startsWith('#q=')) {
           showReadOnlyMode(hash.substring(3));
-        } else {
+        } else if (currentView !== 'export') {
           showCreateMode();
         }
       }
 
-      window.addEventListener('hashchange', route);
       form.addEventListener('submit', handleGenerate);
-      
       route();
     </script>
   </body>

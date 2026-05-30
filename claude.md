@@ -1,23 +1,15 @@
-# claude.md - Contrato tecnico y reglas de datos
+# CLAUDE.md - Contrato tecnico y reglas de datos
 
 Este documento define el contrato tecnico que debe respetar cualquier implementacion para mantener compatibilidad de QR entre versiones.
 
-## Rol esperado de Claude
-
-- Definir y asegurar encode/decode estable.
-- Proteger compatibilidad de schema (`v`).
-- Diseñar validaciones estrictas de integridad.
-- Preparar pruebas de contrato y casos borde.
-
-No introducir backend salvo que se pida explicitamente en otra fase.
-
 ## Principios de arquitectura
 
-- App frontend-only.
+- App frontend-only (Astro + TypeScript + Tailwind v4).
 - El QR contiene toda la informacion necesaria para lectura.
-- Catalogo de partidos vive hardcodeado en frontend.
-- La URL de lectura siempre usa dominio oficial:
-  - `https://mundial.durazno.org/#q=<payload>`
+- Catalogo de 72 partidos de fase de grupos vive hardcodeado en `src/data/matches.ts`.
+- Resultados reales se llenan manualmente en `src/data/results.ts` conforme avanza el torneo.
+- La URL del QR siempre apunta al dominio oficial: `https://mundial.durazno.org/#q=<payload>`
+- Sin backend, sin APIs externas, sin autenticacion.
 
 ## Esquema canonico v1
 
@@ -31,14 +23,14 @@ No introducir backend salvo que se pida explicitamente en otra fase.
 
 ### Campos
 
-- `v` number: version de schema, obligatorio.
-- `n` string: nombre visible, obligatorio, max 40.
-- `p` array: predicciones.
+- `v` number: version de schema, obligatorio, debe ser `1`.
+- `n` string: apodo del usuario, obligatorio, max 10 caracteres, `trim()` aplicado.
+- `p` array: predicciones (debe contener exactamente los 72 partidos).
 - item de `p`: `[id, r, gl, gv]`
-  - `id` number entero positivo.
+  - `id` number entero positivo (1-72).
   - `r` enum `L|E|V`.
-  - `gl` number entero 0..99.
-  - `gv` number entero 0..99.
+  - `gl` number entero 0..15.
+  - `gv` number entero 0..15.
 
 ## Algoritmo de encode/decode (normativo)
 
@@ -47,8 +39,8 @@ No introducir backend salvo que se pida explicitamente en otra fase.
 1. Validar payload logico.
 2. Ordenar `p` por `id` ascendente (determinismo).
 3. `json = JSON.stringify(payload)` sin campos extra.
-4. `packed = compressToEncodedURIComponent(json)`.
-5. Construir URL final con hash `#q=${packed}`.
+4. `packed = compressToEncodedURIComponent(json)` (lz-string).
+5. Construir URL final: `https://mundial.durazno.org/#q=${packed}`.
 
 ### Decode
 
@@ -59,95 +51,108 @@ No introducir backend salvo que se pida explicitamente en otra fase.
    - IDs unicos.
    - IDs existentes en catalogo.
    - coherencia `r` contra `gl/gv`.
-   - **Bloqueo por fecha**: Se impide exportar o crear nuevas quinielas después del 10 de junio de 2026.
 5. Si falla, retornar error tipado y no romper la UI.
 
-## Errores tipados recomendados
+## Reglas de validacion estrictas
 
-- `ERR_Q_MISSING`
-- `ERR_Q_CORRUPT`
-- `ERR_SCHEMA_UNSUPPORTED_VERSION`
-- `ERR_SCHEMA_INVALID`
-- `ERR_PRED_DUPLICATE_MATCH`
-- `ERR_PRED_UNKNOWN_MATCH`
-- `ERR_PRED_INCONSISTENT_SCORE`
+1. **Payload General**:
+   - `v` debe ser `1`.
+   - `n` no debe estar vacio, max **10 caracteres**.
+
+2. **Predicciones (`p`)**:
+   - Debe contener exactamente todos los IDs definidos en `matches.ts`.
+   - No debe haber IDs duplicados o desconocidos.
+   - Goles enteros entre `0` y `15`.
+   - `resultado` debe coincidir con el marcador (L: gl>gv, E: gl==gv, V: gl<gv).
+
+## Sistema de scoring (vista readonly)
+
+Archivo: `src/data/results.ts` - se llena manualmente con resultados reales.
+
+Reglas de puntuacion:
+- **+3 puntos**: marcador exacto (gl y gv coinciden con resultado real).
+- **+1 punto**: acertar solo el resultado general (L/E/V correcto, marcador diferente).
+- **+0 puntos**: fallo total.
+- Partidos sin jugar no suman ni restan.
+
+Visual en la card:
+- +3: card brilla con borde esmeralda, badge animado.
+- +1: card con borde azul sutil.
+- +0: badge gris neutro.
+- Sin jugar: guion gris.
+
+Score total: sticky en el top de la vista readonly, siempre visible.
+
+## Persistencia (localStorage)
+
+- Clave: `quiniela_draft`.
+- Se guarda automaticamente cada cambio de marcador o nombre.
+- Se restaura al volver a la app (previene perdida por recarga, cambio de app, etc).
+- Solo se limpia cuando se entra en modo readonly (`#q=...` valido).
+- NUNCA se limpia al generar el QR (el usuario necesita tiempo para compartir).
+
+## Deadline
+
+- Fecha limite configurable en `src/lib/validators.ts` (`DEV_DEADLINE_ISO`).
+- Si la fecha ha pasado, se bloquea la creacion de nuevas quinielas.
+- Countdown con colores: verde (>7 dias), amarillo (1-7 dias), rojo (<1 dia).
+- Formato humano: "12d 5h 30m" en vez de horas crudas.
+
+## URL del QR
+
+El QR siempre codifica la URL de produccion `https://mundial.durazno.org/#q=...` sin importar el entorno donde se genere (localhost, preview, etc). Esto asegura que los QR funcionan al escanearlos desde cualquier dispositivo.
+
+## Flujo de navegacion
+
+- Sin hash o hash vacio → modo crear.
+- `#q=<payload>` → modo readonly.
+- Vista export: no se resetea al perder foco del navegador. El hashchange solo redirige si no estamos en vista export.
+
+## Compartir
+
+- En dispositivos con Web Share API + soporte de archivos (iOS/Android): boton "Compartir QR" que envia la imagen PNG directamente via la hoja nativa del sistema.
+- Fallback: solo boton "Descargar QR".
+- No se usa el deep link de WhatsApp con URL de texto (es feo y sospechoso para los usuarios).
+
+## Gating del formulario
+
+- El usuario debe escribir su apodo ANTES de poder ver/llenar los partidos.
+- Los match cards estan ocultos hasta que haya nombre.
+- Esto evita frustracion: llenar 72 partidos y no saber por que no se activa el boton.
+
+## Assets
+
+- Logo: `/public/logo.svg` (isotipo Durazno cuadrado 150x150, fondo transparente).
+- Los archivos `Durazno_isotipo_*@1x.svg` fueron eliminados.
+
+## Errores tipados
+
+```ts
+export const FALTA_QUINIELA = 'FALTA_QUINIELA';
+export const QUINIELA_CORRUPTA_O_INVALIDA = 'QUINIELA_CORRUPTA_O_INVALIDA';
+export const VERSION_DE_QUINIELA_NO_SOPORTADA = 'VERSION_DE_QUINIELA_NO_SOPORTADA';
+export const DATOS_DE_QUINIELA_INVALIDOS = 'DATOS_DE_QUINIELA_INVALIDOS';
+export const PARTIDO_DUPLICADO_EN_QUINIELA = 'PARTIDO_DUPLICADO_EN_QUINIELA';
+export const PARTIDO_DESCONOCIDO_EN_QUINIELA = 'PARTIDO_DESCONOCIDO_EN_QUINIELA';
+export const RESULTADO_Y_MARCADOR_INCOHERENTES = 'RESULTADO_Y_MARCADOR_INCOHERENTES';
+```
 
 ## Politica de compatibilidad
 
-- `v=1` es obligatorio en esta fase.
-- Si llega una version futura no soportada:
-  - mostrar mensaje claro,
-  - no intentar parse parcial.
+- `v=1` es obligatorio.
+- Si llega una version futura no soportada: mostrar mensaje claro, no intentar parse parcial.
 - No reutilizar `v` con semantica distinta.
 
-## Limites de tamano QR
+## Archivos clave
 
-Objetivo:
-- Mantener URL final idealmente < 2500 chars para buena escaneabilidad.
-
-Estrategias:
-- Formato compacto por tuplas (no objetos por partido).
-- Nombre max 40 chars.
-- Compresion URI-safe.
-- Evitar metadatos redundantes.
-
-Fallback sugerido:
-- Si excede umbral definido (ej. 2800 chars), advertir al usuario y reducir nombre.
-
-## Reglas de solo lectura
-
-Cuando hay `#q=` valido:
-- Bloquear UI de edicion.
-- No mostrar CTA para reexportar con cambios.
-- Mostrar solo datos del payload decodificado.
-
-## Pruebas de contrato
-
-Crear pruebas unitarias para `lib/codec.ts` y `lib/validators.ts`.
-
-Casos minimos:
-
-1. Encode->Decode feliz conserva datos.
-2. Determinismo: mismo input produce mismo `q`.
-3. Nombre vacio invalido.
-4. Resultado/marcador incoherente invalido.
-5. IDs duplicados invalidos.
-6. IDs fuera de catalogo invalidos.
-7. Hash corrupto retorna error controlado.
-8. Version no soportada retorna error especifico.
-
-## Casos de prueba de ejemplo
-
-```ts
-const ok = { v: 1, n: "Juan", p: [[1, "L", 3, 1], [2, "E", 0, 0]] };
-const badScore = { v: 1, n: "Juan", p: [[1, "L", 0, 1]] };
-const dup = { v: 1, n: "Juan", p: [[1, "E", 1, 1], [1, "E", 2, 2]] };
-```
-
-## Diagrama de contrato
-
-```mermaid
-sequenceDiagram
-  participant UI as UI Crear
-  participant C as Codec
-  participant Q as QR Styling
-  participant R as UI Lectura
-
-  UI->>C: validate + encode(payload v1)
-  C-->>UI: packed q
-  UI->>Q: render(https://mundial.durazno.org/#q=...)
-  Q-->>UI: PNG/SVG
-
-  R->>C: decode(q)
-  C-->>R: payload valido o error tipado
-  R-->>R: render solo lectura
-```
-
-## Entregables tecnicos esperados
-
-- `lib/schema.ts`: tipos y guards.
-- `lib/validators.ts`: reglas de integridad.
-- `lib/codec.ts`: encode/decode determinista.
-- Suite de pruebas para contrato.
-
-Con esto, cualquier QR generado por la app sera portable, legible y compatible mientras se respete `v=1`.
+- `src/pages/index.astro`: punto de entrada, routing, logica principal.
+- `src/components/PredictionForm.astro`: formulario con gating de nombre.
+- `src/components/MatchCard.astro`: tarjeta de partido individual.
+- `src/components/ExportPanel.astro`: vista de QR generado + botones compartir.
+- `src/components/ReadOnlyView.astro`: vista readonly con scoring.
+- `src/components/ErrorState.astro`: pantalla de error.
+- `src/data/matches.ts`: 72 partidos de fase de grupos.
+- `src/data/results.ts`: resultados reales (se llena manualmente durante el mundial).
+- `src/lib/codec.ts`: encode/decode con lz-string.
+- `src/lib/schema.ts`: tipos TypeScript y constantes de error.
+- `src/lib/validators.ts`: validacion de payload y deadline.
