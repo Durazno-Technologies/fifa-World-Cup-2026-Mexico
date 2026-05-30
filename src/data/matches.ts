@@ -27,10 +27,10 @@ export const matches: Match[] = [
 
   // Grupo C
   { id: 13, group: 'C', local: '🇧🇷 Brasil', visita: '🇲🇦 Marruecos', dateStr: '13 de junio, 10:00', stadium: 'Levi\'s Stadium' },
-  { id: 14, group: 'C', local: '🇭🇹 Haití', visita: '🏴 Escocia', dateStr: '13 de junio, 15:00', stadium: 'SoFi Stadium' },
+  { id: 14, group: 'C', local: '🇭🇹 Haití', visita: '🏴󠁧󠁢󠁳󠁣󠁴󠁿 Escocia', dateStr: '13 de junio, 15:00', stadium: 'SoFi Stadium' },
   { id: 15, group: 'C', local: '🇧🇷 Brasil', visita: '🇭🇹 Haití', dateStr: '18 de junio, 18:00', stadium: 'Levi\'s Stadium' },
-  { id: 16, group: 'C', local: '🏴 Escocia', visita: '🇲🇦 Marruecos', dateStr: '18 de junio, 15:00', stadium: 'SoFi Stadium' },
-  { id: 17, group: 'C', local: '🏴 Escocia', visita: '🇧🇷 Brasil', dateStr: '22 de junio, 13:00', stadium: 'Lumen Field' },
+  { id: 16, group: 'C', local: '🏴󠁧󠁢󠁳󠁣󠁴󠁿 Escocia', visita: '🇲🇦 Marruecos', dateStr: '18 de junio, 15:00', stadium: 'SoFi Stadium' },
+  { id: 17, group: 'C', local: '🏴󠁧󠁢󠁳󠁣󠁴󠁿 Escocia', visita: '🇧🇷 Brasil', dateStr: '22 de junio, 13:00', stadium: 'Lumen Field' },
   { id: 18, group: 'C', local: '🇲🇦 Marruecos', visita: '🇭🇹 Haití', dateStr: '22 de junio, 13:00', stadium: 'Levi\'s Stadium' },
 
   // Grupo D
@@ -98,10 +98,10 @@ export const matches: Match[] = [
   { id: 66, group: 'K', local: '🇨🇩 RD del Congo', visita: '🇨🇴 Colombia', dateStr: '27 de junio, 17:00', stadium: 'SoFi Stadium' },
 
   // Grupo L
-  { id: 67, group: 'L', local: '🏴 Inglaterra', visita: '🇭🇷 Croacia', dateStr: '20 de junio, 12:00', stadium: 'AT&T Stadium' },
+  { id: 67, group: 'L', local: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra', visita: '🇭🇷 Croacia', dateStr: '20 de junio, 12:00', stadium: 'AT&T Stadium' },
   { id: 68, group: 'L', local: '🇬🇭 Ghana', visita: '🇵🇦 Panamá', dateStr: '20 de junio, 17:00', stadium: 'Arrowhead Stadium' },
-  { id: 69, group: 'L', local: '🏴 Inglaterra', visita: '🇬🇭 Ghana', dateStr: '26 de junio, 20:00', stadium: 'NRG Stadium' },
+  { id: 69, group: 'L', local: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra', visita: '🇬🇭 Ghana', dateStr: '26 de junio, 20:00', stadium: 'NRG Stadium' },
   { id: 70, group: 'L', local: '🇵🇦 Panamá', visita: '🇭🇷 Croacia', dateStr: '26 de junio, 17:00', stadium: 'AT&T Stadium' },
-  { id: 71, group: 'L', local: '🇵🇦 Panamá', visita: '🏴 Inglaterra', dateStr: '27 de junio, 19:00', stadium: 'Arrowhead Stadium' },
+  { id: 71, group: 'L', local: '🇵🇦 Panamá', visita: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra', dateStr: '27 de junio, 19:00', stadium: 'Arrowhead Stadium' },
   { id: 72, group: 'L', local: '🇭🇷 Croacia', visita: '🇬🇭 Ghana', dateStr: '27 de junio, 19:00', stadium: 'NRG Stadium' },
 ];

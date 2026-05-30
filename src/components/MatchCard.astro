@@ -16,11 +16,11 @@ function formatTime(dateStr: string): { time: string; icon: string } {
   const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
   let icon: string;
   if (hour >= 6 && hour < 12) {
-    icon = '🌅';
+    icon = '🌻';
   } else if (hour >= 12 && hour < 19) {
     icon = '☀️';
   } else {
-    icon = '🌑';
+    icon = '🌛';
   }
   return { time: `${hour12}:${min} ${isPM ? 'PM' : 'AM'}`, icon };
 }
