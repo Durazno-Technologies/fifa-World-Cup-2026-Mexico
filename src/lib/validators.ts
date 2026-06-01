@@ -6,7 +6,7 @@ import {
   type QuinielaPayloadV1 
 } from './schema';
 
-export const DEV_DEADLINE_ISO = '2026-05-30T22:00:00-06:00';
+export const DEV_DEADLINE_ISO = '2026-06-11T13:00:00-06:00';
 
 export function isDeadlinePassed(): boolean {
   const deadline = new Date(DEV_DEADLINE_ISO).getTime();

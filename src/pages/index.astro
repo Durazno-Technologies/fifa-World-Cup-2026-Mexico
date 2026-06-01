@@ -386,6 +386,15 @@ import ErrorState from '../components/ErrorState.astro';
 
         const template = document.getElementById('readonly-match-template') as HTMLTemplateElement;
 
+        // Helper: extrae el video ID de una URL de YouTube
+        function getYouTubeVideoId(url: string): string | null {
+          try {
+            const u = new URL(url);
+            if (u.hostname.includes('youtu.be')) return u.pathname.slice(1);
+            return u.searchParams.get('v');
+          } catch { return null; }
+        }
+
         payload.p.forEach(pred => {
           const [id, r, gl, gv] = pred;
           const match = matchesById.get(id)!;
@@ -421,17 +430,51 @@ import ErrorState from '../components/ErrorState.astro';
           scoreL.textContent = gl.toString();
           scoreV.textContent = gv.toString();
 
+          // Badge con semántica clara: lo que el usuario apostó
           if (r === 'L') {
-            badge.textContent = 'Le va al Local';
+            badge.textContent = 'Apostó Local';
             badge.classList.add('bg-dz-green/20', 'text-dz-green');
             nameL.classList.add('text-dz-green', 'font-extrabold');
           } else if (r === 'V') {
-            badge.textContent = 'Le va al Visitante';
+            badge.textContent = 'Apostó Visita';
             badge.classList.add('bg-blue-100', 'text-blue-600', 'dark:bg-blue-900/30', 'dark:text-blue-300');
             nameV.classList.add('text-blue-600', 'dark:text-blue-300', 'font-extrabold');
           } else {
-            badge.textContent = 'Predice Empate';
+            badge.textContent = 'Apostó Empate';
             badge.classList.add('bg-yellow-100', 'text-yellow-800');
+          }
+
+          // Sección resultado real + video
+          if (realResult) {
+            const realSection = clone.querySelector('.real-result-section') as HTMLElement;
+            realSection.classList.remove('hidden');
+
+            const realScoreL = clone.querySelector('.real-local-score')!;
+            const realScoreV = clone.querySelector('.real-visita-score')!;
+            realScoreL.textContent = realResult.golesLocal.toString();
+            realScoreV.textContent = realResult.golesVisita.toString();
+
+            // Colorear el marcador real según quién ganó
+            if (realResult.golesLocal > realResult.golesVisita) {
+              realScoreL.classList.add('text-dz-green');
+              realScoreV.classList.add('text-gray-400');
+            } else if (realResult.golesLocal < realResult.golesVisita) {
+              realScoreV.classList.add('text-dz-dark', 'dark:text-blue-300');
+              realScoreL.classList.add('text-gray-400');
+            }
+
+            // Video thumbnail + link
+            if (realResult.video) {
+              const videoId = getYouTubeVideoId(realResult.video);
+              if (videoId) {
+                const videoLink = clone.querySelector('.video-link') as HTMLAnchorElement;
+                const videoThumb = clone.querySelector('.video-thumbnail') as HTMLImageElement;
+                videoLink.classList.remove('hidden');
+                videoLink.href = realResult.video;
+                videoThumb.src = `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+                videoThumb.alt = `Resumen: ${match.local} vs ${match.visita}`;
+              }
+            }
           }
 
           if (pointsBadge && card) {

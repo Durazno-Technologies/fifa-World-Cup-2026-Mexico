@@ -62,6 +62,11 @@ Flujo:
 - Score sticky en top siempre visible.
 - Cards se iluminan segun puntaje (+3 brilla esmeralda, +1 borde azul).
 - Nombre del equipo favorito resaltado en color (verde local, azul visita).
+- Badge de apuesta dice "Apostó Local", "Apostó Visita", "Apostó Empate".
+- Sección de resultado real debajo de la predicción con marcador coloreado.
+- Thumbnail de YouTube automático (`img.youtube.com/vi/{id}/mqdefault.jpg`) con overlay de play.
+- Link del video abre YouTube directamente (app nativa en móvil, navegador en desktop).
+- Campo `video` en `results.ts` guarda URL del resumen oficial del partido.
 - Limpia localStorage al entrar (unica condicion de limpieza).
 
 ## Diseño visual
