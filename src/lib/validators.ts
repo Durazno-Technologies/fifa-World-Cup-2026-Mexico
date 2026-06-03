@@ -1,10 +1,4 @@
 import { matches } from '../data/matches';
-import { 
-  PARTIDO_DUPLICADO_EN_QUINIELA, 
-  RESULTADO_Y_MARCADOR_INCOHERENTES, 
-  PARTIDO_DESCONOCIDO_EN_QUINIELA, 
-  type QuinielaPayloadV1 
-} from './schema';
 
 export const DEV_DEADLINE_ISO = '2026-06-11T13:00:00-06:00';
 
@@ -18,38 +12,59 @@ export function getDeadlineTimeLeft(): number {
   return Math.max(0, deadline - Date.now());
 }
 
-export function validatePayload(payload: QuinielaPayloadV1): { valid: true } | { valid: false; error: string } {
-  if (!payload || payload.v !== 1) {
-    return { valid: false, error: 'Versión inválida o payload corrupto' };
-  }
-  
-  if (typeof payload.n !== 'string' || payload.n.trim() === '' || payload.n.length > 10) {
-    return { valid: false, error: 'Nombre inválido (debe tener entre 1 y 10 caracteres)' };
+export type PredictionInput = {
+  matchId: number;
+  resultado: 'L' | 'E' | 'V';
+  golesLocal: number;
+  golesVisita: number;
+};
+
+export function validatePredictions(
+  predictions: PredictionInput[]
+): { valid: true; predictions: PredictionInput[] } | { valid: false; error: string } {
+  if (!Array.isArray(predictions) || predictions.length === 0) {
+    return { valid: false, error: 'No hay predicciones' };
   }
 
-  const seenIds = new Set<number>();
   const matchIds = new Set(matches.map(m => m.id));
+  const seenIds = new Set<number>();
 
-  for (const pred of payload.p) {
-    const [id, r, gl, gv] = pred;
-    
-    if (!matchIds.has(id)) {
-      return { valid: false, error: PARTIDO_DESCONOCIDO_EN_QUINIELA };
-    }
-    
-    if (seenIds.has(id)) {
-      return { valid: false, error: PARTIDO_DUPLICADO_EN_QUINIELA };
-    }
-    seenIds.add(id);
+  for (const pred of predictions) {
+    const { matchId, resultado, golesLocal, golesVisita } = pred;
 
-    if (typeof gl !== 'number' || typeof gv !== 'number' || gl < 0 || gl > 15 || gv < 0 || gv > 15) {
-      return { valid: false, error: 'Marcador inválido (debe ser entre 0 y 15)' };
+    if (typeof matchId !== 'number' || !matchIds.has(matchId)) {
+      return { valid: false, error: `Partido desconocido: ${matchId}` };
     }
 
-    if (r === 'L' && gl <= gv) return { valid: false, error: RESULTADO_Y_MARCADOR_INCOHERENTES };
-    if (r === 'E' && gl !== gv) return { valid: false, error: RESULTADO_Y_MARCADOR_INCOHERENTES };
-    if (r === 'V' && gl >= gv) return { valid: false, error: RESULTADO_Y_MARCADOR_INCOHERENTES };
+    if (seenIds.has(matchId)) {
+      return { valid: false, error: `Partido duplicado: ${matchId}` };
+    }
+    seenIds.add(matchId);
+
+    if (typeof golesLocal !== 'number' || typeof golesVisita !== 'number' ||
+        golesLocal < 0 || golesLocal > 15 || golesVisita < 0 || golesVisita > 15) {
+      return { valid: false, error: `Marcador inválido en partido ${matchId} (debe ser entre 0 y 15)` };
+    }
+
+    if (!['L', 'E', 'V'].includes(resultado)) {
+      return { valid: false, error: `Resultado inválido en partido ${matchId}` };
+    }
+
+    if (resultado === 'L' && golesLocal <= golesVisita) {
+      return { valid: false, error: `Resultado y marcador incoherentes en partido ${matchId}` };
+    }
+    if (resultado === 'E' && golesLocal !== golesVisita) {
+      return { valid: false, error: `Resultado y marcador incoherentes en partido ${matchId}` };
+    }
+    if (resultado === 'V' && golesLocal >= golesVisita) {
+      return { valid: false, error: `Resultado y marcador incoherentes en partido ${matchId}` };
+    }
   }
 
-  return { valid: true };
+  return { valid: true, predictions };
 }
+
+// Mantener compatibilidad con el validador old-style para archivos que lo usen
+export const PARTIDO_DUPLICADO_EN_QUINIELA = 'PARTIDO_DUPLICADO_EN_QUINIELA';
+export const PARTIDO_DESCONOCIDO_EN_QUINIELA = 'PARTIDO_DESCONOCIDO_EN_QUINIELA';
+export const RESULTADO_Y_MARCADOR_INCOHERENTES = 'RESULTADO_Y_MARCADOR_INCOHERENTES';

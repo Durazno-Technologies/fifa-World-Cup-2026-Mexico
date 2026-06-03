@@ -1,0 +1,233 @@
+---
+import '../../styles/global.css';
+import { db } from '../../lib/db';
+import { users, predictions, results } from '../../lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { matches, type Match } from '../../data/matches';
+import { scoreUserPredictions, scoreUserPredictionsDetailed, type PredictionWithResult, type MatchResult } from '../../lib/scoring';
+
+export const prerender = false;
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect('/login');
+}
+
+const { username } = Astro.params;
+
+// Buscar usuario por username
+const [targetUser] = await db
+  .select()
+  .from(users)
+  .where(eq(users.username, username!.toLowerCase()))
+  .limit(1);
+
+if (!targetUser) {
+  return Astro.redirect('/dashboard');
+}
+
+// Cargar predicciones del usuario
+const userPredictions = await db
+  .select()
+  .from(predictions)
+  .where(eq(predictions.user_id, targetUser.id));
+
+// Cargar resultados reales de la DB
+const dbResults = await db.select().from(results);
+const realResults: MatchResult[] = dbResults.map(r => ({
+  id: r.match_id,
+  golesLocal: r.goles_local,
+  golesVisita: r.goles_visita,
+  video: r.video,
+}));
+const resultsById = new Map(realResults.map(r => [r.id, r]));
+
+// Armar predicciones para scoring
+const predsForScoring: PredictionWithResult[] = userPredictions.map(p => ({
+  matchId: p.match_id,
+  resultado: p.resultado as 'L' | 'E' | 'V',
+  golesLocal: p.goles_local,
+  golesVisita: p.goles_visita,
+}));
+
+const detailedScores = scoreUserPredictionsDetailed(predsForScoring, realResults);
+const totalScore = scoreUserPredictions(predsForScoring, realResults);
+
+// Armar mapa de predicciones por matchId
+const predByMatchId = new Map(userPredictions.map(p => [p.match_id, p]));
+
+function getYouTubeVideoId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1);
+    return u.searchParams.get('v');
+  } catch { return null; }
+}
+---
+
+<!DOCTYPE html>
+<html lang="es" class="antialiased text-gray-900 bg-gray-50 dark:bg-gray-950 dark:text-gray-50">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quiniela de {targetUser.display_name} — Mundial 2026</title>
+    <meta name="description" content="Quiniela de {targetUser.display_name} para el Mundial 2026." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="w-full max-w-4xl mx-auto p-4 flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">⚽</span>
+        <span class="font-black text-xl tracking-tight text-dz-dark dark:text-gray-100">FIFA World Cup <span class="text-dz-orange font-bold">2026</span></span>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/dashboard" class="text-sm font-semibold text-dz-orange hover:underline">Leaderboard</a>
+        <a href="/" class="text-sm font-semibold text-dz-green hover:underline">Mi Quiniela</a>
+        <span class="text-sm text-gray-500">{user.display_name}</span>
+      </div>
+    </header>
+
+    <main class="flex-1 w-full max-w-4xl mx-auto p-4">
+      <!-- Sticky score bar -->
+      <div class="sticky top-0 z-40 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md py-3 px-5 rounded-b-2xl shadow-md border border-gray-100 dark:border-gray-700 mb-6 flex items-center justify-between">
+        <span class="text-sm font-semibold text-gray-600 dark:text-gray-300">Puntos acumulados</span>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-400">⚽</span>
+          <span class="text-3xl font-black text-dz-orange">{totalScore}</span>
+          <span class="text-xs text-gray-400">pts</span>
+        </div>
+      </div>
+
+      <div class="mb-8 text-center bg-white/50 dark:bg-gray-800/50 backdrop-blur-md py-6 px-4 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-400 mb-2">
+          Quiniela de <span class="text-gray-800 dark:text-gray-100">{targetUser.display_name}</span>
+        </h1>
+        <p class="text-gray-600 dark:text-gray-400">Pronósticos de la primera fase</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {matches.map((match: Match) => {
+          const pred = predByMatchId.get(match.id);
+          const realResult = resultsById.get(match.id);
+          const matchScore = pred ? detailedScores.get(match.id) ?? -1 : -1;
+
+          return (
+            <div class={`relative bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 flex flex-col gap-3 border transition-all ${
+              matchScore === 3
+                ? 'ring-2 ring-emerald-400 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-green-950/30 border-emerald-200 dark:border-emerald-700'
+                : matchScore === 1
+                ? 'ring-1 ring-blue-300 border-blue-200 dark:border-blue-700'
+                : 'border-gray-100 dark:border-gray-700'
+            }`}>
+              {pred && (
+                <span class={`absolute -top-2 -right-2 inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-black z-10 ${
+                  matchScore === 3
+                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-300'
+                    : matchScore === 1
+                    ? 'bg-blue-500 text-white shadow-md shadow-blue-200'
+                    : matchScore === 0
+                    ? 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                    : 'bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
+                }`}>
+                  {matchScore === -1 ? '–' : matchScore === 3 ? '+3' : matchScore === 1 ? '+1' : '0'}
+                </span>
+              )}
+
+              <div class="text-xs text-center text-gray-500 font-semibold tracking-wider uppercase">
+                Grupo {match.group} • {match.dateStr}
+              </div>
+
+              <div class="flex flex-col gap-2">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex-1 text-right flex flex-col">
+                    <span class="font-bold text-gray-800 dark:text-gray-100 text-sm md:text-base">{match.local}</span>
+                  </div>
+                  <div class="flex items-center justify-center gap-3 px-4 bg-gray-50 dark:bg-gray-900 rounded-lg py-2 border border-gray-100 dark:border-gray-700 shadow-inner min-w-[100px]">
+                    {pred ? (
+                      <>
+                        <span class="text-xl font-black text-gray-800 dark:text-gray-100">{pred.goles_local}</span>
+                        <span class="text-gray-300 dark:text-gray-600">-</span>
+                        <span class="text-xl font-black text-gray-800 dark:text-gray-100">{pred.goles_visita}</span>
+                      </>
+                    ) : (
+                      <span class="text-sm text-gray-400">—</span>
+                    )}
+                  </div>
+                  <div class="flex-1 text-left flex flex-col">
+                    <span class="font-bold text-gray-800 dark:text-gray-100 text-sm md:text-base">{match.visita}</span>
+                  </div>
+                </div>
+
+                {pred && (
+                  <div class="text-center h-6 flex justify-center items-center">
+                    <span class={`inline-block px-3 py-1 rounded-full text-[10px] font-bold ${
+                      pred.resultado === 'L' ? 'bg-dz-green/20 text-dz-green' :
+                      pred.resultado === 'V' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      Apostó {pred.resultado === 'L' ? 'Local' : pred.resultado === 'V' ? 'Visita' : 'Empate'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {realResult && (
+                <>
+                  <div class="border-t border-dashed border-gray-200 dark:border-gray-600 my-1"></div>
+                  <div class="flex flex-col gap-2">
+                    <div class="text-center">
+                      <span class="text-[10px] font-semibold text-gray-400 dark:text-gray-500 tracking-wider uppercase">Resultado Real</span>
+                    </div>
+                    <div class="flex items-center justify-center gap-3">
+                      <span class={`text-lg font-black ${realResult.golesLocal > realResult.golesVisita ? 'text-dz-green' : 'text-gray-400'}`}>
+                        {realResult.golesLocal}
+                      </span>
+                      <span class="text-gray-300 dark:text-gray-600">-</span>
+                      <span class={`text-lg font-black ${realResult.golesLocal < realResult.golesVisita ? 'text-dz-dark dark:text-blue-300' : 'text-gray-400'}`}>
+                        {realResult.golesVisita}
+                      </span>
+                    </div>
+                    {realResult.video && (() => {
+                      const videoId = getYouTubeVideoId(realResult.video);
+                      return videoId ? (
+                        <a class="group/video relative block rounded-lg overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] active:scale-[0.98]" href={realResult.video} target="_blank" rel="noopener noreferrer">
+                          <img class="video-thumbnail w-full aspect-video object-cover bg-gray-100 dark:bg-gray-900" src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`} alt={`Resumen: ${match.local} vs ${match.visita}`} loading="lazy" />
+                          <div class="absolute inset-0 flex items-center justify-center bg-black/20 group-hover/video:bg-black/30 transition-colors">
+                            <div class="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-lg group-hover/video:scale-110 transition-transform">
+                              <svg class="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            </div>
+                          </div>
+                          <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
+                            <span class="text-white text-[10px] font-semibold flex items-center gap-1">
+                              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M21.582 6.186a2.506 2.506 0 0 0-1.768-1.768C18.254 4 12 4 12 4s-6.254 0-7.814.418c-.86.23-1.538.908-1.768 1.768C2 7.746 2 12 2 12s0 4.254.418 5.814c.23.86.908 1.538 1.768 1.768C5.746 20 12 20 12 20s6.254 0 7.814-.418a2.506 2.506 0 0 0 1.768-1.768C22 16.254 22 12 22 12s0-4.254-.418-5.814z"/><path d="M10 15.464V8.536L16 12z" fill="white"/></svg>
+                              Ver resumen
+                            </span>
+                          </div>
+                        </a>
+                      ) : null;
+                    })()}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div class="mt-12 text-center">
+        <a href="/dashboard" class="inline-block px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold rounded-xl shadow-lg transform transition active:scale-95 text-lg">
+          Ver Leaderboard
+        </a>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full py-4 text-center text-xs text-gray-400 dark:text-gray-600">
+      <div class="flex items-center justify-center gap-2">
+        <img src="/logo.svg" alt="Durazno" class="w-4 h-4 opacity-60" />
+        <span>Powered by Durazno Technologies</span>
+      </div>
+    </footer>
+  </body>
+</html>

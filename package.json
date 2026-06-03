@@ -12,14 +12,17 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/vercel": "^10.0.8",
+    "@node-rs/argon2": "^2.0.2",
     "@tailwindcss/vite": "^4.3.0",
     "astro": "^6.4.2",
-    "lz-string": "^1.5.0",
-    "qr-code-styling": "^1.9.2",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.9",
     "tailwindcss": "^4.3.0"
   },
   "devDependencies": {
-    "@types/lz-string": "^1.3.34",
+    "@types/node": "^25.9.1",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^6.0.3"
   }
 }

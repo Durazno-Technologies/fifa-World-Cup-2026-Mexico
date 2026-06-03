@@ -1,163 +1,169 @@
-# CLAUDE.md - Contrato tecnico y reglas de datos
+# CLAUDE.md — Contrato v2 (Multi-usuario con login + DB)
 
-Este documento define el contrato tecnico que debe respetar cualquier implementacion para mantener compatibilidad de QR entre versiones.
+> Este documento reemplaza el contrato v1 (QR + lz-string). La app ya no usa QR ni
+> localStorage como fuente de verdad. Todo persiste en Postgres con sesión por cookie.
 
-## Principios de arquitectura
+## Arquitectura
 
-- App frontend-only (Astro + TypeScript + Tailwind v4).
-- El QR contiene toda la informacion necesaria para lectura.
-- Catalogo de 72 partidos de fase de grupos vive hardcodeado en `src/data/matches.ts`.
-- Resultados reales se llenan manualmente en `src/data/results.ts` conforme avanza el torneo.
-- La URL del QR siempre apunta al dominio oficial: `https://mundial.durazno.org/#q=<payload>`
-- Sin backend, sin APIs externas, sin autenticacion.
+- **Stack:** Astro v6 + TypeScript + Tailwind v4 + Postgres (Aiven) + Drizzle ORM.
+- **Deploy:** Vercel (adapter `@astrojs/vercel`), dominio `mundial.durazno.org`.
+- **Backend:** Endpoints REST `/api/*` + SSR pages. Sin CORS (mismo origen).
+- **Auth:** Sesión por token opaco en DB + cookie httpOnly. Sin registro público.
+- **Base de datos:** Postgres 17 en Aiven. Cadena en `DATABASE_URL_QUINIELA`.
 
-## Esquema canonico v1
+## Modelo de datos (4 tablas)
 
-```json
-{
-  "v": 1,
-  "n": "Hugo",
-  "p": [[1,"L",2,1],[2,"E",0,0],[3,"V",1,2]]
-}
-```
+### `users`
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | SERIAL PK | |
+| `username` | TEXT UNIQUE | Login credential (lowercase) |
+| `password_hash` | TEXT | argon2id |
+| `display_name` | TEXT | Apodo visible (≤15 chars) |
+| `created_at` | TIMESTAMPTZ | Default now() |
 
-### Campos
+### `sessions`
+| Columna | Tipo | Notas |
+|---|---|---|
+| `token` | TEXT PK | Opaco, randomUUID |
+| `user_id` | INT FK→users | ON DELETE CASCADE |
+| `expires_at` | TIMESTAMPTZ | 90 días |
+| `created_at` | TIMESTAMPTZ | Default now() |
 
-- `v` number: version de schema, obligatorio, debe ser `1`.
-- `n` string: apodo del usuario, obligatorio, max 10 caracteres, `trim()` aplicado.
-- `p` array: predicciones (debe contener exactamente los 72 partidos).
-- item de `p`: `[id, r, gl, gv]`
-  - `id` number entero positivo (1-72).
-  - `r` enum `L|E|V`.
-  - `gl` number entero 0..15.
-  - `gv` number entero 0..15.
+### `predictions`
+| Columna | Tipo | Notas |
+|---|---|---|
+| `user_id` + `match_id` | PK compuesta | |
+| `resultado` | CHAR(1) | 'L'\|'E'\|'V' |
+| `goles_local` | SMALLINT | 0..15 |
+| `goles_visita` | SMALLINT | 0..15 |
+| `updated_at` | TIMESTAMPTZ | |
 
-## Algoritmo de encode/decode (normativo)
+### `results`
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | SERIAL PK | |
+| `match_id` | INT UNIQUE | 1..72 |
+| `goles_local` | SMALLINT | 0..15 |
+| `goles_visita` | SMALLINT | 0..15 |
+| `video` | TEXT | URL YouTube |
+| `updated_at` | TIMESTAMPTZ | |
 
-### Encode
+**Nota:** `matches` NO va a la DB. Sigue en `src/data/matches.ts`.
 
-1. Validar payload logico.
-2. Ordenar `p` por `id` ascendente (determinismo).
-3. `json = JSON.stringify(payload)` sin campos extra.
-4. `packed = compressToEncodedURIComponent(json)` (lz-string).
-5. Construir URL final: `https://mundial.durazno.org/#q=${packed}`.
+## Autenticación y autorización
 
-### Decode
+### Middleware (`src/middleware.ts`)
+- Lee cookie `session`, busca en DB, valida expiración.
+- Si es válido: `context.locals.user = { id, username, display_name }`.
+- Si no: redirect silencioso a `/login` (páginas) o 401 (endpoints API).
+- Rutas públicas: `/login`, assets estáticos (`/_astro/`, `/favicon*`, `/logo.svg`).
 
-1. Leer `q` del hash.
-2. `json = decompressFromEncodedURIComponent(q)`.
-3. Parse JSON y validar schema.
-4. Verificar integridad semantica:
-   - IDs unicos.
-   - IDs existentes en catalogo.
-   - coherencia `r` contra `gl/gv`.
-5. Si falla, retornar error tipado y no romper la UI.
+### Login (`POST /api/auth/login`)
+- Busca user por username (lowercase), verifica argon2.
+- Crea sesión con token randomUUID, set-cookie httpOnly+Secure+SameSite=Lax.
+- Mensaje genérico en error: "Usuario o contraseña inválidos".
 
-## Reglas de validacion estrictas
+### Logout (`POST /api/auth/logout`)
+- Borra sesión de DB, limpia cookie.
 
-1. **Payload General**:
-   - `v` debe ser `1`.
-   - `n` no debe estar vacio, max **10 caracteres**.
+### Escritura (`PUT /api/quiniela`)
+- Endpoint protegido por sesión.
+- **Ownership forzado server-side:** siempre escribe sobre `user_id = session.user.id`.
+- **Deadline validado server-side** antes de escribir.
+- **Validación reusando `validators.ts`** (matchIds, goles, coherencia resultado).
+- Upsert sobre `(user_id, match_id)`.
 
-2. **Predicciones (`p`)**:
-   - Debe contener exactamente todos los IDs definidos en `matches.ts`.
-   - No debe haber IDs duplicados o desconocidos.
-   - Goles enteros entre `0` y `15`.
-   - `resultado` debe coincidir con el marcador (L: gl>gv, E: gl==gv, V: gl<gv).
+## Rutas
 
-## Sistema de scoring (vista readonly)
+| Ruta | Acceso | Descripción |
+|---|---|---|
+| `/login` | Público | Formulario login. Si hay sesión: redirect a `/`. |
+| `/` | Requiere sesión | Editor de quiniela propia. SSR carga datos existentes. |
+| `/dashboard` | Requiere sesión | Leaderboard con ranking de puntos. SSR, cero JS. |
+| `/quiniela/[username]` | Requiere sesión | Vista readonly de otro usuario. SSR con scoring. |
 
-Archivo: `src/data/results.ts` - se llena manualmente con resultados reales.
+## Endpoints
 
-Reglas de puntuacion:
-- **+3 puntos**: marcador exacto (gl y gv coinciden con resultado real).
-- **+1 punto**: acertar solo el resultado general (L/E/V correcto, marcador diferente).
-- **+0 puntos**: fallo total.
-- Partidos sin jugar no suman ni restan.
+| Método + ruta | Cuerpo | Efecto |
+|---|---|---|
+| `POST /api/auth/login` | `{ username, password }` | Crea sesión, set-cookie. |
+| `POST /api/auth/logout` | — | Borra sesión. |
+| `PUT /api/quiniela` | `{ predicciones: [{ matchId, resultado, golesLocal, golesVisita }] }` | Upsert de predicciones del usuario autenticado. |
 
-Visual en la card:
-- +3: card brilla con borde esmeralda, badge animado.
-- +1: card con borde azul sutil.
-- +0: badge gris neutro.
-- Sin jugar: guion gris.
+## Scoring (`src/lib/scoring.ts`)
+- **+3**: marcador exacto.
+- **+1**: solo resultado correcto (L/E/V), marcador distinto.
+- **+0**: fallo.
+- Sin resultado en `results` → no suma/resta.
 
-Score total: sticky en el top de la vista readonly, siempre visible.
+## Datos de partidos
+- Catálogo de 72 partidos: `src/data/matches.ts` (hardcoded).
+- Resultados reales: **en DB** (tabla `results`), admin inserta directo. Sin redeploy.
+- El dashboard y scoring leen de la DB en cada request.
 
-## Persistencia (localStorage)
+## Persistencia y draft
+- El servidor es la fuente de verdad.
+- localStorage (`quiniela_draft`) es solo red de seguridad para recuperación.
+- Autosave al servidor con debounce de 1.5s.
+- Al cargar la página, el SSR inyecta las predicciones vía `<script id="ssr-state">`.
 
-- Clave: `quiniela_draft`.
-- Se guarda automaticamente cada cambio de marcador o nombre.
-- Se restaura al volver a la app (previene perdida por recarga, cambio de app, etc).
-- Solo se limpia cuando se entra en modo readonly (`#q=...` valido).
-- NUNCA se limpia al generar el QR (el usuario necesita tiempo para compartir).
+## Seed de usuarios
+- Script: `npx tsx scripts/seed-users.ts <username>:<password> [...]`
+- Los usuarios son provisionados por el admin. No hay registro público ni reset de password.
 
-## Deadline
-
-- Fecha limite configurable en `src/lib/validators.ts` (`DEV_DEADLINE_ISO`).
-- Si la fecha ha pasado, se bloquea la creacion de nuevas quinielas.
-- Countdown con colores: verde (>7 dias), amarillo (1-7 dias), rojo (<1 dia).
-- Formato humano: "12d 5h 30m" en vez de horas crudas.
-
-## URL del QR
-
-El QR siempre codifica la URL de produccion `https://mundial.durazno.org/#q=...` sin importar el entorno donde se genere (localhost, preview, etc). Esto asegura que los QR funcionan al escanearlos desde cualquier dispositivo.
-
-## Flujo de navegacion
-
-- Sin hash o hash vacio → modo crear.
-- `#q=<payload>` → modo readonly.
-- Vista export: no se resetea al perder foco del navegador. El hashchange solo redirige si no estamos en vista export.
-
-## Compartir
-
-- La exportacion publica es solo por descarga de imagen QR (boton "Descargar QR").
-- No hay boton de compartir nativo ni deep links de WhatsApp.
-
-## Requerimientos funcionales
-
-- El usuario debe escribir su apodo ANTES de poder ver/llenar los partidos.
-- Los match cards estan ocultos hasta que haya nombre.
-- Esto evita frustracion: llenar 72 partidos y no saber por que no se activa el boton.
-
-## Assets
-
-- Logo: `/public/logo.svg` (isotipo Durazno cuadrado 150x150, fondo transparente).
-
-## Errores tipados
-
-```ts
-export const FALTA_QUINIELA = 'FALTA_QUINIELA';
-export const QUINIELA_CORRUPTA_O_INVALIDA = 'QUINIELA_CORRUPTA_O_INVALIDA';
-export const VERSION_DE_QUINIELA_NO_SOPORTADA = 'VERSION_DE_QUINIELA_NO_SOPORTADA';
-export const DATOS_DE_QUINIELA_INVALIDOS = 'DATOS_DE_QUINIELA_INVALIDOS';
-export const PARTIDO_DUPLICADO_EN_QUINIELA = 'PARTIDO_DUPLICADO_EN_QUINIELA';
-export const PARTIDO_DESCONOCIDO_EN_QUINIELA = 'PARTIDO_DESCONOCIDO_EN_QUINIELA';
-export const RESULTADO_Y_MARCADOR_INCOHERENTES = 'RESULTADO_Y_MARCADOR_INCOHERENTES';
-```
-
-## Politica de compatibilidad
-
-- `v=1` es obligatorio.
-- Si llega una version futura no soportada: mostrar mensaje claro, no intentar parse parcial.
-- No reutilizar `v` con semantica distinta.
+## Seguridad
+- [x] Cookies `HttpOnly` + `Secure` + `SameSite=Lax`.
+- [x] Passwords con argon2id.
+- [x] Mensajes de error genéricos en login.
+- [x] Ownership server-side en PUT (nunca aceptar `user_id` del cliente).
+- [x] Deadline validado en servidor.
+- [x] Validación de matchId y goles reusando `validators.ts`.
+- [x] TLS a Aiven (`sslmode=require`).
+- [x] Expiración de sesión + invalidación en logout.
+- [x] Rate limit sugerido: 5 req/min en `/api/auth/login` (configurar en Vercel).
 
 ## Archivos clave
 
-- `src/pages/index.astro`: punto de entrada, routing, logica principal.
-- `src/components/PredictionForm.astro`: formulario con gating de nombre.
-- `src/components/MatchCard.astro`: tarjeta de partido individual.
-- `src/components/ExportPanel.astro`: vista de QR generado + boton de descarga.
-- `src/components/ReadOnlyView.astro`: vista readonly con scoring.
-- `src/components/ErrorState.astro`: pantalla de error.
-- `src/data/matches.ts`: 72 partidos de fase de grupos.
-- `src/data/results.ts`: resultados reales (se llena manualmente durante el mundial).
-- `src/lib/codec.ts`: encode/decode con lz-string.
-- `src/lib/schema.ts`: tipos TypeScript y constantes de error.
-- `src/lib/validators.ts`: validacion de payload y deadline.
+### Conservados
+- `src/data/matches.ts` — catálogo de 72 partidos.
+- `src/components/MatchCard.astro` — tarjeta de partido.
+- `src/components/ReadOnlyView.astro` — template readonly (ya no se usa directo; el SSR de `/quiniela/[username].astro` lo reemplaza).
 
-## Estado y handoff rapido
+### Modificados
+- `src/pages/index.astro` — editor SSR sin QR ni name gating.
+- `src/components/PredictionForm.astro` — sin QR ni name input.
+- `src/lib/validators.ts` — nueva función `validatePredictions` para API.
+- `src/styles/global.css` — tokens de color (sin cambios).
+- `package.json`, `astro.config.mjs`.
 
-- Proyecto en produccion: `https://mundial.durazno.org`.
-- QR canonico en produccion, schema `v=1` estable.
-- Boton DEV mantiene comportamiento aleatorio para los 72 partidos (testing rapido).
-- Sigue pendiente validar horarios/sedes partido a partido contra snapshot externo antes de cerrar fixture.
+### Creados
+- `src/lib/db.ts` — cliente postgres.js con drizzle.
+- `src/lib/db/schema.ts` — schema Drizzle.
+- `src/lib/scoring.ts` — cálculo de puntos.
+- `src/middleware.ts` — auth middleware.
+- `src/env.d.ts` — tipos Locals.
+- `src/pages/login.astro` — login form.
+- `src/pages/dashboard.astro` — leaderboard.
+- `src/pages/quiniela/[username].astro` — readonly view.
+- `src/pages/api/auth/login.ts` — login endpoint.
+- `src/pages/api/auth/logout.ts` — logout endpoint.
+- `src/pages/api/quiniela.ts` — save predictions endpoint.
+- `scripts/seed-users.ts` — seed script.
+- `drizzle.config.ts` — drizzle-kit config.
+- `drizzle/0000_clever_starhawk.sql` — migration.
+
+### Eliminados
+- `src/lib/codec.ts`, `src/components/ExportPanel.astro`, `src/data/results.ts`.
+- Dependencias: `lz-string`, `@types/lz-string`, `qr-code-styling`.
+
+## Estado actual del proyecto
+- ✅ Build exitoso con `astro build`.
+- ✅ DB con 4 tablas migradas y seed de usuarios.
+- ✅ Login funcional con argon2.
+- ✅ Editor con autosave (localStorage draft + PUT al servidor).
+- ✅ Dashboard con leaderboard.
+- ✅ Vista readonly de cualquier usuario.
+- ✅ Middleware de sesión.
+- ✅ Rate limiting en `/api/auth/login`.
+- 🔄 Seguir completando `results` en DB conforme avance el torneo (18 insertados hasta ahora).

@@ -271,16 +271,16 @@ No hay base de datos de desarrollo ni staging. Todo se prueba directamente en el
 
 ## 11. Checklist de seguridad (revisar al final con `/security-review`)
 
-- [ ] Cookies `HttpOnly` + `Secure` + `SameSite=Lax`.
-- [ ] Passwords con argon2id (nunca en claro, nunca commiteadas).
-- [ ] Mensajes de error de login genéricos (no revelar si falló user o pass).
-- [ ] Ownership server-side en `PUT` (jamás aceptar `user_id` del cliente).
-- [ ] Deadline validado en servidor en cada escritura.
-- [ ] Validación de `match_id` y goles reusando `validators.ts`.
-- [ ] TLS a Aiven (`sslmode=require`).
-- [ ] `DATABASE_URL_QUINIELA` y código de DB **solo en archivos de servidor / endpoints** — verificar que ningún `<script>` de cliente importe `db.ts` (no debe filtrarse al bundle).
-- [ ] Expiración de sesión + invalidación en logout.
-- [ ] Establecer rate-limit de proteccion con 5 peticiones por minuto en `/api/auth/login`.
+- [x] Cookies `HttpOnly` + `Secure` + `SameSite=Lax`.
+- [x] Passwords con argon2id (nunca en claro, nunca commiteadas).
+- [x] Mensajes de error de login genéricos (no revelar si falló user o pass).
+- [x] Ownership server-side en `PUT` (jamás aceptar `user_id` del cliente).
+- [x] Deadline validado en servidor en cada escritura.
+- [x] Validación de `match_id` y goles reusando `validators.ts`.
+- [x] TLS a Aiven (`sslmode=require`).
+- [x] `DATABASE_URL_QUINIELA` y código de DB **solo en archivos de servidor / endpoints** — verificar que ningún `<script>` de cliente importe `db.ts` (no debe filtrarse al bundle).
+- [x] Expiración de sesión + invalidación en logout.
+- [x] Establecer rate-limit de proteccion con 5 peticiones por minuto en `/api/auth/login`.
 
 ---
 
