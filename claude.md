@@ -35,8 +35,8 @@
 |---|---|---|
 | `user_id` + `match_id` | PK compuesta | |
 | `resultado` | CHAR(1) | 'L'\|'E'\|'V' |
-| `goles_local` | SMALLINT | 0..15 |
-| `goles_visita` | SMALLINT | 0..15 |
+| `goles_local` | INTEGER | 0..15 (validado en app) |
+| `goles_visita` | INTEGER | 0..15 (validado en app) |
 | `updated_at` | TIMESTAMPTZ | |
 
 ### `results`
@@ -44,8 +44,8 @@
 |---|---|---|
 | `id` | SERIAL PK | |
 | `match_id` | INT UNIQUE | 1..72 |
-| `goles_local` | SMALLINT | 0..15 |
-| `goles_visita` | SMALLINT | 0..15 |
+| `goles_local` | INTEGER | 0..15 (validado en app) |
+| `goles_visita` | INTEGER | 0..15 (validado en app) |
 | `video` | TEXT | URL YouTube |
 | `updated_at` | TIMESTAMPTZ | |
 
@@ -121,14 +121,13 @@
 - [x] Validación de matchId y goles reusando `validators.ts`.
 - [x] TLS a Aiven (`sslmode=require`).
 - [x] Expiración de sesión + invalidación en logout.
-- [x] Rate limit sugerido: 5 req/min en `/api/auth/login` (configurar en Vercel).
+- [x] Rate limiting (5 req/min en `/api/auth/login`) implementado en `src/lib/rate-limiter.ts`.
 
 ## Archivos clave
 
 ### Conservados
 - `src/data/matches.ts` — catálogo de 72 partidos.
 - `src/components/MatchCard.astro` — tarjeta de partido.
-- `src/components/ReadOnlyView.astro` — template readonly (ya no se usa directo; el SSR de `/quiniela/[username].astro` lo reemplaza).
 
 ### Modificados
 - `src/pages/index.astro` — editor SSR sin QR ni name gating.

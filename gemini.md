@@ -25,7 +25,6 @@ src/
   components/
     MatchCard.astro      # Tarjeta de partido (selects de goles, badge resultado)
     PredictionForm.astro # Formulario de grid de partidos
-    ReadOnlyView.astro   # Plantilla base para vista readonly
   data/
     matches.ts           # 72 partidos de fase de grupos (hardcoded)
   lib/
@@ -47,7 +46,7 @@ src/
 ### 2. Editor de quiniela (`/`)
 - Carga las predicciones guardadas en DB mediante SSR.
 - Cada cambio de marcador genera un **autosave con debounce de 1.5s** hacia `PUT /api/quiniela`.
-- Como resguardo contra errores de red, se mantiene un borrador en `localStorage` (`quiniela_draft`) que se sincroniza con el estado del servidor.
+- Como resguardo contra errores de red, se mantiene un borrador en `localStorage` (`quiniela_draft_{username}`) que se sincroniza con el estado del servidor.
 - El servidor valida estrictamente la fecha límite (deadline) antes de aceptar cambios.
 
 ### 3. Dashboard (`/dashboard`)

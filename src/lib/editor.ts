@@ -10,22 +10,33 @@ type PredictionState = {
 
 type SsrState = {
   user: { displayName: string };
+  userId: number;
+  username: string;
   serverUpdatedAt: number;
   predictions: PredictionState[];
 };
 
 type DraftState = {
+  userId: number;
   matches: Record<string, { l: string; v: string }>;
   timestamp: number;
 };
 
-const STORAGE_KEY = 'quiniela_draft';
+function getStorageKey(username: string): string {
+  return `quiniela_draft_${username}`;
+}
 
 function parseSsrState(): SsrState {
   const ssrStateEl = document.getElementById('ssr-state') as HTMLScriptElement | null;
 
   if (!ssrStateEl?.textContent) {
-    return { user: { displayName: 'Mi' }, serverUpdatedAt: 0, predictions: [] };
+    return {
+      user: { displayName: 'Mi' },
+      userId: 0,
+      username: '',
+      serverUpdatedAt: 0,
+      predictions: [],
+    };
   }
 
   try {
@@ -35,12 +46,20 @@ function parseSsrState(): SsrState {
         displayName:
           typeof parsed?.user?.displayName === 'string' ? parsed.user.displayName : 'Mi',
       },
+      userId: typeof parsed?.userId === 'number' ? parsed.userId : 0,
+      username: typeof parsed?.username === 'string' ? parsed.username : '',
       serverUpdatedAt:
         typeof parsed?.serverUpdatedAt === 'number' ? parsed.serverUpdatedAt : 0,
       predictions: Array.isArray(parsed?.predictions) ? parsed.predictions : [],
     };
   } catch {
-    return { user: { displayName: 'Mi' }, serverUpdatedAt: 0, predictions: [] };
+    return {
+      user: { displayName: 'Mi' },
+      userId: 0,
+      username: '',
+      serverUpdatedAt: 0,
+      predictions: [],
+    };
   }
 }
 
@@ -121,8 +140,9 @@ function collectPredictions(): PredictionState[] {
   return preds;
 }
 
-function saveDraft() {
-  const draft: DraftState = { matches: {}, timestamp: Date.now() };
+function saveDraft(userId: number, username: string) {
+  if (!username) return; // No persistir sin username (key inválida).
+  const draft: DraftState = { userId, matches: {}, timestamp: Date.now() };
 
   document.querySelectorAll('.match-card').forEach((card) => {
     const matchId = (card as HTMLElement).dataset.matchId;
@@ -135,16 +155,27 @@ function saveDraft() {
     draft.matches[matchId] = { l: localInput.value, v: visitaInput.value };
   });
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+  localStorage.setItem(getStorageKey(username), JSON.stringify(draft));
 }
 
-function restoreDraftIfNewer(serverUpdatedAt: number) {
-  const raw = localStorage.getItem(STORAGE_KEY);
+function restoreDraftIfNewer(userId: number, username: string, serverUpdatedAt: number) {
+  if (!username) return;
+  const storageKey = getStorageKey(username);
+  const raw = localStorage.getItem(storageKey);
   if (!raw) return;
 
   try {
     const draft = JSON.parse(raw) as DraftState;
     if (!draft?.matches || typeof draft.timestamp !== 'number') return;
+
+    // Validar ownership. Si el draft.userId no coincide con el usuario
+    // actual, es un draft huérfano (otro usuario usó este navegador antes)
+    // o un draft legado (pre-fix, sin userId). Descartar y limpiar.
+    if (typeof draft.userId !== 'number' || draft.userId !== userId) {
+      localStorage.removeItem(storageKey);
+      return;
+    }
+
     if (draft.timestamp <= serverUpdatedAt) return;
 
     document.querySelectorAll('.match-card').forEach((card) => {
@@ -163,7 +194,8 @@ function restoreDraftIfNewer(serverUpdatedAt: number) {
       updateCardBadge(card as HTMLElement);
     });
   } catch {
-    // Draft inválido; se ignora para no romper la UI.
+    // Draft corrupto: se limpia para no romper la UI en loads futuros.
+    localStorage.removeItem(storageKey);
   }
 }
 
@@ -277,14 +309,14 @@ export function initEditor() {
     return;
   }
 
-  let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  let saveTimeout: number | null = null;
   let isSaving = false;
 
   nodes.form.classList.remove('hidden');
   nodes.predictionTitle.textContent = `La Quiniela de ${state.user.displayName}`;
 
   hydrateFromServer(state.predictions);
-  restoreDraftIfNewer(state.serverUpdatedAt);
+  restoreDraftIfNewer(state.userId, state.username, state.serverUpdatedAt);
   updateProgress(nodes.progressContainer, nodes.progressBar);
 
   const countdownTick = () => {
@@ -317,7 +349,8 @@ export function initEditor() {
       });
 
       if (res.ok) {
-        localStorage.removeItem(STORAGE_KEY);
+        // Limpiar el draft del usuario actual (no el de otros).
+        localStorage.removeItem(getStorageKey(state.username));
         return;
       }
 
@@ -332,7 +365,7 @@ export function initEditor() {
   };
 
   const triggerSave = () => {
-    saveDraft();
+    saveDraft(state.userId, state.username);
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = window.setTimeout(saveToServer, 1500);
   };
@@ -343,6 +376,8 @@ export function initEditor() {
       const localInput = card.querySelector('.score-input-local') as HTMLSelectElement | null;
       const visitaInput = card.querySelector('.score-input-visita') as HTMLSelectElement | null;
       if (!localInput || !visitaInput) return;
+      // Solo rellenar si ambos están vacíos (preservar trabajo existente).
+      if (localInput.value !== '' || visitaInput.value !== '') return;
 
       localInput.value = String(Math.floor(Math.random() * 4));
       visitaInput.value = String(Math.floor(Math.random() * 4));
@@ -369,7 +404,14 @@ export function initEditor() {
   });
 
   nodes.btnLogout.addEventListener('click', async () => {
+    // 1. Limpiar el draft del usuario actual (no el de otros usuarios en este
+    //    navegador, por si comparten la máquina).
+    if (state.username) {
+      localStorage.removeItem(getStorageKey(state.username));
+    }
+    // 2. Logout server-side.
     await fetch('/api/auth/logout', { method: 'POST' });
+    // 3. Redirect.
     window.location.href = '/login';
   });
 }

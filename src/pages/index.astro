@@ -29,6 +29,8 @@ const latestServerUpdate = userPredictions.reduce((max, p) => {
 // los datos rompa fuera del tag (XSS); sigue siendo JSON válido.
 const ssrState = JSON.stringify({
   user: { displayName: user.display_name },
+  userId: user.id,
+  username: user.username,
   serverUpdatedAt: latestServerUpdate,
   predictions: userPredictions.map((p) => ({
     matchId: p.match_id,

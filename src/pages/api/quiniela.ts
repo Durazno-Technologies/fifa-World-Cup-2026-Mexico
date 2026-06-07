@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../lib/db';
 import { sessions, predictions } from '../../lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { isDeadlinePassed, validatePredictions } from '../../lib/validators';
 
 export const prerender = false;
@@ -63,25 +63,29 @@ export const PUT: APIRoute = async ({ request, cookies }) => {
       });
     }
 
-    // Upsert: insertar o actualizar cada predicción
-    for (const pred of validation.predictions) {
+    // Bulk upsert: una sola query para todas las predicciones.
+    // 72 queries secuenciales → 1 sola. Drizzle parametriza correctamente.
+    if (validation.predictions.length > 0) {
+      const now = new Date();
       await db
         .insert(predictions)
-        .values({
-          user_id: userId,
-          match_id: pred.matchId,
-          resultado: pred.resultado,
-          goles_local: pred.golesLocal,
-          goles_visita: pred.golesVisita,
-          updated_at: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [predictions.user_id, predictions.match_id],
-          set: {
+        .values(
+          validation.predictions.map((pred) => ({
+            user_id: userId,
+            match_id: pred.matchId,
             resultado: pred.resultado,
             goles_local: pred.golesLocal,
             goles_visita: pred.golesVisita,
-            updated_at: new Date(),
+            updated_at: now,
+          }))
+        )
+        .onConflictDoUpdate({
+          target: [predictions.user_id, predictions.match_id],
+          set: {
+            resultado: sql`excluded.resultado`,
+            goles_local: sql`excluded.goles_local`,
+            goles_visita: sql`excluded.goles_visita`,
+            updated_at: sql`excluded.updated_at`,
           },
         });
     }

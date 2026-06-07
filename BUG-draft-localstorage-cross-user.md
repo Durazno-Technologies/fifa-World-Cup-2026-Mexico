@@ -1,6 +1,6 @@
 # Bug: Draft en localStorage se comparte entre usuarios en el mismo navegador
 
-> **Estado:** Listo para implementación y validación por el próximo agente LLM.
+> **Estado:** ✅ Corregido — validado, mergeado a master y desplegado en producción.
 > **Severidad:** Alta — fuga de datos entre cuentas en el mismo navegador.
 > **Alcance del fix:** 3 archivos production (`src/lib/editor.ts`, `src/pages/index.astro`, `src/pages/api/quiniela.ts`). 0 archivos nuevos.
 > **Migración de datos:** No requiere. Drafts legados sin `userId` se descartan y limpian automáticamente al primer load del nuevo código.
