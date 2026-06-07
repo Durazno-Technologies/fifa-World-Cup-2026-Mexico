@@ -1,0 +1,26 @@
+---
+import Analytics from '@vercel/analytics/astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title = 'Quiniela Mundial 2026', description = 'Crea tu quiniela para el Mundial 2026.' } = Astro.props;
+---
+
+<!DOCTYPE html>
+<html lang="es" class="antialiased text-gray-900 bg-gray-50 dark:bg-gray-950 dark:text-gray-50">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <slot name="head" />
+    <Analytics />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

@@ -203,7 +203,7 @@ El payload v1 (`{v, n, p:[[id,r,gl,gv]]}`) que viajaba en el QR se descompone as
 
 ## 7. Scoring (centralizar en `src/lib/scoring.ts`)
 
-Reglas (de `CLAUDE.md`, sin cambios):
+Reglas sin cambios:
 - **+3**: marcador exacto (`golesLocal` y `golesVisita` coinciden con el real).
 - **+1**: solo acierta resultado (`L`/`E`/`V` correcto, marcador distinto).
 - **+0**: fallo.
@@ -248,14 +248,11 @@ Reglas (de `CLAUDE.md`, sin cambios):
 
 ---
 
-## 9. Variables de entorno y config
+## 9. Variables de entorno
 
 | Var | Dónde | Notas |
 |---|---|---|
 | `DATABASE_URL_QUINIELA` | Vercel (dashboard) | Cadena de conexión a Aiven con `sslmode=require`. Se inyecta en el entorno del deploy. No hay `.env` local — el dev la pone manualmente en el dashboard de Vercel y la pipeline la inyecta en build y runtime. |
-
-- `astro.config.mjs`: añadir `import vercel from '@astrojs/vercel'` y `adapter: vercel()`, definir `output` acorde (estático por defecto + páginas `prerender=false`).
-- Actualizar `CLAUDE.md`: el contrato de QR v1 queda **obsoleto**. Reescribirlo como contrato v2 (auth + DB): esquema de tablas, reglas de autorización, deadline server-side, nota de que `matches.ts` sigue en código y `results` vive en DB.
 
 ---
 
@@ -295,46 +292,3 @@ No hay base de datos de desarrollo ni staging. Todo se prueba directamente en el
 7. **Dashboard** `/dashboard` (SSR ranking).
 8. **Readonly** `/quiniela/[username]` (SSR reusando template).
 9. **Deadline** server-side.
-10. **Reescribir `CLAUDE.md` y `GEMINI.md`** al contrato v2 + **security review** + smoke test en preview de Vercel.
-
----
-
-## Apéndice A — Qué modelo/herramienta usar en cada fase (costo-beneficio)
-
-> Premisa del dueño: el código lo hace IA, no humanos. Su tiempo es el recurso caro. Regla general:
-> **usar de pago (Opus / Claude Code) donde un bug = hueco de seguridad o pérdida de datos; usar gratis donde el peor caso es "se ve feo" o "hay que iterar un poco".**
-
-| Fase / tipo de trabajo | Recomendación | Por qué |
-|---|---|---|
-| **Auth, sesión, middleware, ownership, deadline server-side** (fases 4, 6-deadline, 11) | **De pago — Opus 4.8 / Claude Code.** No arriesgar. | Un error aquí = cuentas comprometidas o editar quiniela ajena. Radio de impacto máximo. |
-| **Esquema de DB + migraciones + capa Drizzle/conexión** (fases 1-3) | **De pago.** | Errores de schema/SSL/pool son caros de revertir en prod sin entorno de pruebas. |
-| **Endpoint `PUT` con validación** (fase 5-save) | **De pago** (la validación toca integridad). | Es la única escritura; debe estar blindada. |
-| **Refactor del JS inline a módulos** (fase 5) | **Gratis** (Cline con modelo free / Copilot free / OpenRouter free + opencode). | Mecánico, sin riesgo de seguridad; el peor caso es iterar. Revisión rápida con modelo de pago opcional. |
-| **Maquetado UI: `/login`, `/dashboard`, ajustes Tailwind** (fases 4, 7) | **Gratis** + **Stitch/Banani** para referencia visual. | Es presentación; un humano detecta al instante si quedó mal. |
-| **Vista readonly reusando template** (fase 8) | **Gratis**, con revisión de pago del cálculo de puntos. | El template ya existe; es cableado de datos. |
-| **Scoring** (fase 6) | **De pago o gratis con revisión de pago.** | Lógica con aristas (exacto vs resultado vs sin jugar); barato de verificar pero molesto si sale mal. |
-| **Security review final** (fase 10) | **De pago — Opus / `/security-review`.** | Es justamente el momento de no escatimar. |
-
-**Advertencia honesta sobre orquestar varias herramientas gratis (opencode + OpenRouter free + Cline free + Copilot free):**
-los modelos gratuitos son más débiles → más iteraciones, más debugging, más context-switching entre herramientas. En trabajo
-mecánico (UI, refactor, docs) el ahorro es real. En auth/DB/seguridad, el tiempo perdido depurando salidas mediocres suele
-costar **más** (en tu tiempo) que lo que ahorras en tokens. **No mezcles herramientas en las fases sensibles**: ahí, una sola
-herramienta de pago capaz, de corrido, es lo más barato en términos reales.
-
----
-
-## Apéndice B — Inventario de archivos
-
-**Conservar:** `src/data/matches.ts`, `src/components/MatchCard.astro`,
-`<template>` de `src/components/ReadOnlyView.astro`, reglas de `src/lib/validators.ts`, tipos de `src/lib/schema.ts`.
-
-**Eliminar:** `src/data/results.ts`, `src/lib/codec.ts`, `src/components/ExportPanel.astro`, deps `lz-string` / `@types/lz-string` / `qr-code-styling`, lógica de `localStorage`, ruteo `#q=`.
-
-**Crear:** `astro.config.mjs` (adapter), `drizzle.config.ts`, `src/lib/db.ts`, `src/lib/db/schema.ts`,
-`src/lib/scoring.ts`, `src/lib/editor.ts`, `src/middleware.ts`, `src/pages/login.astro`,
-`src/pages/dashboard.astro`, `src/pages/quiniela/[username].astro`, `src/pages/api/auth/login.ts`,
-`src/pages/api/auth/logout.ts`, `src/pages/api/quiniela.ts`, `scripts/seed-users.ts`.
-
-**Modificar:** `src/pages/index.astro` (editor: SSR + guardado + sin gating/QR/localStorage),
-`src/components/PredictionForm.astro` (quitar QR/gating), `src/components/ReadOnlyView.astro` (fuente de datos = DB),
-`package.json` (deps), `CLAUDE.md` (contrato v2).

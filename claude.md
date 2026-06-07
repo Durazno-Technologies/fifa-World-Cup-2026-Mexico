@@ -104,7 +104,7 @@
 
 ## Persistencia y draft
 - El servidor es la fuente de verdad.
-- localStorage (`quiniela_draft`) es solo red de seguridad para recuperación.
+- localStorage (`quiniela_draft_{username}`) es solo red de seguridad para recuperación.
 - Autosave al servidor con debounce de 1.5s.
 - Al cargar la página, el SSR inyecta las predicciones vía `<script id="ssr-state">`.
 
