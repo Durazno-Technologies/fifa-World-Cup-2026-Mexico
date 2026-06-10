@@ -17,8 +17,7 @@ if (!connectionString) {
 
 const args = process.argv.slice(2);
 if (args.length === 0) {
-  console.error('USO: npx tsx scripts/seed-users.ts username:password [username2:password2 ...]');
-  console.error('Ej: npx tsx scripts/seed-users.ts admin:changeme richi:secreto');
+  console.error('USO: npx tsx scripts/seed-users.ts admin:changeme richi:secreto');
   process.exit(1);
 }
 

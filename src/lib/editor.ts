@@ -300,7 +300,6 @@ export function initEditor() {
     !nodes.form ||
     !nodes.progressContainer ||
     !nodes.progressBar ||
-    !nodes.btnDevFill ||
     !nodes.countdownTimer ||
     !nodes.countdownContainer ||
     !nodes.predictionTitle ||
@@ -370,23 +369,25 @@ export function initEditor() {
     saveTimeout = window.setTimeout(saveToServer, 1500);
   };
 
-  nodes.btnDevFill.classList.remove('hidden');
-  nodes.btnDevFill.onclick = () => {
-    document.querySelectorAll('.match-card').forEach((card) => {
-      const localInput = card.querySelector('.score-input-local') as HTMLSelectElement | null;
-      const visitaInput = card.querySelector('.score-input-visita') as HTMLSelectElement | null;
-      if (!localInput || !visitaInput) return;
-      // Solo rellenar si ambos están vacíos (preservar trabajo existente).
-      if (localInput.value !== '' || visitaInput.value !== '') return;
+  if (nodes.btnDevFill) {
+    nodes.btnDevFill.classList.remove('hidden');
+    nodes.btnDevFill.onclick = () => {
+      document.querySelectorAll('.match-card').forEach((card) => {
+        const localInput = card.querySelector('.score-input-local') as HTMLSelectElement | null;
+        const visitaInput = card.querySelector('.score-input-visita') as HTMLSelectElement | null;
+        if (!localInput || !visitaInput) return;
+        // Solo rellenar si ambos están vacíos (preservar trabajo existente).
+        if (localInput.value !== '' || visitaInput.value !== '') return;
 
-      localInput.value = String(Math.floor(Math.random() * 4));
-      visitaInput.value = String(Math.floor(Math.random() * 4));
-      updateCardBadge(card as HTMLElement);
-    });
+        localInput.value = String(Math.floor(Math.random() * 4));
+        visitaInput.value = String(Math.floor(Math.random() * 4));
+        updateCardBadge(card as HTMLElement);
+      });
 
-    updateProgress(nodes.progressContainer!, nodes.progressBar!);
-    triggerSave();
-  };
+      updateProgress(nodes.progressContainer!, nodes.progressBar!);
+      triggerSave();
+    };
+  }
 
   document.querySelectorAll('.match-card').forEach((card) => {
     const localInput = card.querySelector('.score-input-local') as HTMLSelectElement | null;
