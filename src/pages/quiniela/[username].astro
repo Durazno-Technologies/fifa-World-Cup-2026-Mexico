@@ -75,7 +75,7 @@ function getYouTubeVideoId(url: string): string | null {
     </div>
     <div class="flex items-center gap-3">
       <a href="/dashboard" class="text-sm font-semibold text-dz-orange hover:underline">Leaderboard</a>
-      <a href="/" class="text-sm font-semibold text-dz-green hover:underline">Mi Quiniela</a>
+      <a href={`/quiniela/${user.username}`} class="text-sm font-semibold text-dz-green hover:underline">Mi Quiniela</a>
       <span class="text-sm text-gray-500">{user.display_name}</span>
     </div>
   </header>

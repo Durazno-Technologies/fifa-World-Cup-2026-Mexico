@@ -1,10 +1,5 @@
 ---
 import '../styles/global.css';
-import Layout from '../components/Layout.astro';
-import PredictionForm from '../components/PredictionForm.astro';
-import { db } from '../lib/db';
-import { predictions } from '../lib/db/schema';
-import { eq } from 'drizzle-orm';
 
 export const prerender = false;
 
@@ -13,74 +8,5 @@ if (!user) {
   return Astro.redirect('/login');
 }
 
-// Cargar predicciones existentes del usuario desde la DB
-const userPredictions = await db
-  .select()
-  .from(predictions)
-  .where(eq(predictions.user_id, user.id));
-
-const latestServerUpdate = userPredictions.reduce((max, p) => {
-  const updatedAt = new Date(p.updated_at).getTime();
-  return Number.isFinite(updatedAt) ? Math.max(max, updatedAt) : max;
-}, 0);
-
-// Serializar estado inicial para frontend.
-// Se escapa `<` como `<` para evitar que un `</script>` dentro de
-// los datos rompa fuera del tag (XSS); sigue siendo JSON válido.
-const ssrState = JSON.stringify({
-  user: { displayName: user.display_name },
-  userId: user.id,
-  username: user.username,
-  serverUpdatedAt: latestServerUpdate,
-  predictions: userPredictions.map((p) => ({
-    matchId: p.match_id,
-    resultado: p.resultado,
-    golesLocal: p.goles_local,
-    golesVisita: p.goles_visita,
-  })),
-}).replace(/</g, '\\u003c');
+return Astro.redirect('/dashboard');
 ---
-
-<Layout title="Quiniela Mundial 2026" description="Crea tu quiniela para el Mundial 2026.">
-  <head slot="head">
-    <!-- Estado inicial injectado por SSR -->
-    <script id="ssr-state" type="application/json" set:html={ssrState}></script>
-  </head>
-
-  <!-- Progress Bar -->
-  <div id="progress-container" class="fixed top-0 left-0 right-0 h-2 bg-gray-200 dark:bg-gray-800 z-50 hidden">
-    <div id="progress-bar" class="h-full bg-gradient-to-r from-dz-orange to-dz-green w-0 transition-all duration-300 ease-out"></div>
-  </div>
-
-  <!-- Header -->
-  <header class="w-full max-w-4xl p-4 flex justify-between items-center z-10">
-    <div class="flex items-center gap-2">
-      <span class="text-xl">⚽</span>
-      <span class="font-black text-xl tracking-tight text-dz-dark dark:text-gray-100">FIFA World Cup <span class="text-dz-orange font-bold">2026</span></span>
-      <span class="text-sm">🇲🇽🇺🇸🇨🇦</span>
-    </div>
-    <div class="flex items-center gap-3">
-      <a href="/dashboard" class="text-sm font-semibold text-dz-orange hover:underline">Leaderboard</a>
-      <span class="text-sm text-gray-500 dark:text-gray-400">{user.display_name}</span>
-      <button id="btn-logout" class="text-xs text-gray-400 hover:text-red-500 transition-colors cursor-pointer">Salir</button>
-    </div>
-  </header>
-
-  <main class="flex-1 w-full p-4 relative">
-    <PredictionForm />
-  </main>
-
-  <!-- Footer -->
-  <footer class="w-full py-4 text-center text-xs text-gray-400 dark:text-gray-600">
-    <div class="flex items-center justify-center gap-2">
-      <img src="/logo.svg" alt="Durazno" class="w-4 h-4 opacity-60" />
-      <span>Powered by Durazno Technologies</span>
-    </div>
-  </footer>
-
-  <script>
-    import { initEditor } from '../lib/editor';
-
-    initEditor();
-  </script>
-</Layout>
