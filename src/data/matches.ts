@@ -13,7 +13,8 @@ export type Match = {
 // Estadios con nombre oficial FIFA (español para México, inglés para USA/Canadá).
 // Los ids son estables por emparejamiento (referenciados por predictions en DB);
 // el orden del array es cronológico dentro de cada grupo.
-// kickoff: timestamp UNIX en segundos, hora CDMX (UTC-6)
+// kickoff: timestamp UNIX en segundos (real UTC). El valor numérico corresponde
+//   al instante UTC de la patada inicial; la columna dateStr muestra la hora CDMX.
 export const matches: Match[] = [
   // Grupo A
   { id: 1, group: 'A', local: '🇲🇽 México', visita: '🇿🇦 Sudáfrica', dateStr: '11 de junio, 13:00', stadium: 'Estadio Ciudad de México', kickoff: 1781204400 },

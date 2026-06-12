@@ -1,8 +1,8 @@
 import { matches, type Match } from '../data/matches';
 
 /**
- * Variable para modo debug/test. Si se asigna un timestamp (segundos),
- * `getMexicoCityNow` devuelve esa fecha en vez de la real.
+ * Variable para modo debug/test. Si se asigna un timestamp (segundos, real UTC),
+ * se usa en vez de Date.now() para las comparaciones.
  * Solo disponible en SSR, nunca en cliente.
  */
 let _testNowSec: number | null = null;
@@ -12,28 +12,19 @@ export function setTestNowSec(sec: number | null): void {
 }
 
 /**
- * Obtiene la hora actual en CDMX (UTC-6, sin horario de verano)
- * usando el servidor SSR, NO el reloj del cliente.
- * 
- * Mexico City timezone: UTC-6 year-round (no DST in Mexico since 2022).
+ * Duración total estimada de un partido en segundos (~115 minutos).
  */
-function getMexicoCityNow(): Date {
-  if (_testNowSec !== null) {
-    return new Date(_testNowSec * 1000);
-  }
-  const now = new Date();
-  // Get UTC time
-  const utcMs = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
-  // Mexico City is UTC-6
-  const cdmxMs = utcMs - (6 * 60 * 60 * 1000);
-  return new Date(cdmxMs);
-}
+const MATCH_DURATION_SEC = 115 * 60; // 6900
 
 /**
- * Convierte un timestamp UNIX (segundos, CDMX) a objeto Date.
+ * Devuelve el timestamp actual en segundos (real UTC, UNIX epoch).
+ * Si _testNowSec está activo, devuelve ese valor.
  */
-function kickoffToDate(kickoff: number): Date {
-  return new Date(kickoff * 1000);
+function getCurrentTimeSec(): number {
+  if (_testNowSec !== null) {
+    return _testNowSec;
+  }
+  return Math.floor(Date.now() / 1000);
 }
 
 export type NextMatchInfo = {
@@ -59,16 +50,16 @@ export type PredictionSummary = {
 };
 
 /**
- * Finds the next upcoming match(es) based on Mexico City server time.
- * Returns all matches that share the same earliest future kickoff time.
- * If all matches have started, returns empty.
+ * Finds the next upcoming match(es) based on current time (real UTC).
+ * A match is considered "in progress" until kickoff + ~115 min.
+ * Once all matches finish, returns empty.
  */
 export function getNextMatches(): NextMatchInfo {
-  const now = getMexicoCityNow();
-  const nowSec = Math.floor(now.getTime() / 1000);
+  const nowSec = getCurrentTimeSec();
 
-  // Filter matches that haven't started yet (kickoff > now)
-  const upcoming = matches.filter(m => m.kickoff > nowSec);
+  // Filter matches that haven't finished yet (kickoff + duration >= now)
+  // Using >= so the match is "in progress" during the entire ~115min window
+  const upcoming = matches.filter(m => m.kickoff + MATCH_DURATION_SEC >= nowSec);
 
   if (upcoming.length === 0) {
     return { nextMatches: [], hasNext: false, label: '' };
