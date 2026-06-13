@@ -12,9 +12,9 @@ export function setTestNowSec(sec: number | null): void {
 }
 
 /**
- * Duración total estimada de un partido en segundos (~115 minutos).
+ * Duración total estimada de un partido en segundos (~120 minutos).
  */
-const MATCH_DURATION_SEC = 115 * 60; // 6900
+const MATCH_DURATION_SEC = 120 * 60; // 7200
 
 /**
  * Devuelve el timestamp actual en segundos (real UTC, UNIX epoch).
@@ -51,14 +51,14 @@ export type PredictionSummary = {
 
 /**
  * Finds the next upcoming match(es) based on current time (real UTC).
- * A match is considered "in progress" until kickoff + ~115 min.
+ * A match is considered "in progress" until kickoff + ~120 min.
  * Once all matches finish, returns empty.
  */
 export function getNextMatches(): NextMatchInfo {
   const nowSec = getCurrentTimeSec();
 
   // Filter matches that haven't finished yet (kickoff + duration >= now)
-  // Using >= so the match is "in progress" during the entire ~115min window
+  // Using >= so the match is "in progress" during the entire ~120min window
   const upcoming = matches.filter(m => m.kickoff + MATCH_DURATION_SEC >= nowSec);
 
   if (upcoming.length === 0) {
